@@ -21,11 +21,16 @@ class FakeClient:
             return b"v1.8.1"
         if uuid == const.CHAR_BDADDR:
             return bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66])
+        if uuid == const.CHAR_GLOBAL_CFG:
+            # system=PS2 (17), multitap=None (0), inquiry=Manual (1), bank byte 0 -> 1
+            return bytes([17, 0, 1, 0])
         if uuid == const.CHAR_CMD:
             if self._last_cmd == const.CMD_GET_GAMEID:
                 return b"GALE01"
             if self._last_cmd == const.CMD_GET_CFG_SRC:
                 return bytes([0x01])
+            if self._last_cmd == const.CMD_GET_FW_NAME:
+                return b"playstation hw1"
         raise AssertionError(f"unexpected read {uuid}")
 
     async def write_gatt_char(self, uuid, data, response=True):
@@ -57,7 +62,42 @@ async def test_async_update_reads_all_fields(fake_ble_device):
     assert state.game_id == "GALE01"
     assert state.cfg_src == 1
     assert state.game_name == "Super Smash Bros. Melee"
+    assert state.fw_name == "playstation hw1"
+    assert state.system == "PS2"
+    assert state.multitap == "None"
+    assert state.inquiry_mode == "Manual"
+    assert state.memory_card_bank == 1
     client.disconnect.assert_awaited_once()
+
+
+async def test_async_update_tolerates_missing_global_config(fake_ble_device):
+    """Older firmware without global config / fw_name still reads core fields."""
+    client = FakeClient()
+
+    async def only_core(uuid):
+        if uuid == const.CHAR_ABI:
+            return bytes([0x02])
+        if uuid == const.CHAR_APP:
+            return b"v1.8.1"
+        if uuid == const.CHAR_BDADDR:
+            return bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66])
+        if uuid == const.CHAR_CMD and client._last_cmd == const.CMD_GET_GAMEID:
+            return b"GALE01"
+        if uuid == const.CHAR_CMD and client._last_cmd == const.CMD_GET_CFG_SRC:
+            return bytes([0x01])
+        raise Exception("characteristic not supported")
+
+    client.read_gatt_char = only_core
+    with (
+        patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)),
+        patch("blueretro_ble.device.lookup_game_name", return_value=None),
+    ):
+        state = await BlueRetroDevice().async_update(fake_ble_device)
+
+    assert state.available is True
+    assert state.fw_version == "v1.8.1"
+    assert state.system is None
+    assert state.fw_name is None
 
 
 async def test_async_update_disconnects_even_on_read_error(fake_ble_device):
