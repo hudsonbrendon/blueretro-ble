@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blueretro-ble"
+version = "0.1.0"
+description = "BLE library for the BlueRetro retro-console Bluetooth adapter"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "Hudson Brendon", email = "contato.hudsonbrendon@gmail.com" }]
+keywords = ["bluetooth", "ble", "blueretro", "home-assistant", "retro-gaming"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Home Automation",
+]
+dependencies = [
+    "bleak>=0.22.0",
+    "bleak-retry-connector>=3.5.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.urls]
+Homepage = "https://github.com/hudsonbrendon/blueretro-ble"
+Repository = "https://github.com/hudsonbrendon/blueretro-ble"
+Issues = "https://github.com/hudsonbrendon/blueretro-ble/issues"
+
+[tool.setuptools]
+packages = ["blueretro_ble"]
+
+[tool.setuptools.package-data]
+blueretro_ble = ["gameid.db"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
