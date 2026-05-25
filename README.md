@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/hudsonbrendon/blueretro-ble/main/icons/logo.png" alt="BlueRetro" width="360">
+</p>
+
 # blueretro-ble
 
 Pure-Python BLE library for the [BlueRetro](https://github.com/darthcloud/BlueRetro)
