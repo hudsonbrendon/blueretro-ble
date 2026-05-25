@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a problem with the blueretro-ble library
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal code or steps that trigger the issue.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: blueretro-ble, Python, OS, and (if known) BlueRetro firmware.
+      placeholder: "blueretro-ble 0.1.0, Python 3.12, Linux, fw v24.04"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / traceback
+      render: text

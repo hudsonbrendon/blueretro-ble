@@ -4,6 +4,11 @@
 
 # blueretro-ble
 
+[![Tests](https://github.com/hudsonbrendon/blueretro-ble/actions/workflows/test.yml/badge.svg)](https://github.com/hudsonbrendon/blueretro-ble/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/blueretro-ble.svg)](https://pypi.org/project/blueretro-ble/)
+[![Python](https://img.shields.io/pypi/pyversions/blueretro-ble.svg)](https://pypi.org/project/blueretro-ble/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Pure-Python BLE library for the [BlueRetro](https://github.com/darthcloud/BlueRetro)
 retro-console Bluetooth adapter. Talks to the BlueRetro GATT server via
 [`bleak`](https://github.com/hbldh/bleak) +
