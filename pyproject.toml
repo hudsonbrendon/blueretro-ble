@@ -38,7 +38,7 @@ Issues = "https://github.com/hudsonbrendon/blueretro-ble/issues"
 packages = ["blueretro_ble"]
 
 [tool.setuptools.package-data]
-blueretro_ble = ["gameid.db"]
+blueretro_ble = ["gameid.db", "py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
