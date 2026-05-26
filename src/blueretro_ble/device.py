@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import struct
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
@@ -16,6 +17,7 @@ from .protocol import (
     decode_abi,
     decode_bdaddr,
     decode_global_config,
+    decode_output_config,
     decode_string,
 )
 
@@ -57,6 +59,7 @@ class BlueRetroDevice:
                 await self._read_global_config(client)
             )
             fw_name = await self._read_fw_name(client)
+            controller_mode, accessory = await self._read_output(client, 0)
         except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
             _LOGGER.debug("BlueRetro read failed: %s", err)
             self.last_state = BlueRetroState(available=False)
@@ -77,6 +80,8 @@ class BlueRetroDevice:
             multitap=multitap,
             inquiry_mode=inquiry_mode,
             memory_card_bank=memory_card_bank,
+            controller_mode=controller_mode,
+            accessory=accessory,
         )
         self.last_state = state
         return state
@@ -90,6 +95,19 @@ class BlueRetroDevice:
         except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
             _LOGGER.debug("BlueRetro global config read failed: %s", err)
             return (None, None, None, None)
+
+    async def _read_output(
+        self, client: BleakClient, port: int
+    ) -> tuple[str | None, str | None]:
+        try:
+            await client.write_gatt_char(
+                const.CHAR_OUTPUT_CTRL, struct.pack("<H", port), response=True
+            )
+            raw = await client.read_gatt_char(const.CHAR_OUTPUT_DATA)
+            return decode_output_config(raw)
+        except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
+            _LOGGER.debug("BlueRetro output config read failed: %s", err)
+            return (None, None)
 
     async def _read_fw_name(self, client: BleakClient) -> str | None:
         try:
@@ -166,6 +184,40 @@ class BlueRetroDevice:
                 await client.write_gatt_char(
                     const.CHAR_CMD, bytes([const.CMD_SYS_RESET]), response=True
                 )
+        finally:
+            await client.disconnect()
+
+    async def async_read_output_config(
+        self, ble_device: BLEDevice, port: int = 0
+    ) -> tuple[str | None, str | None]:
+        """Read a port's output config as ``(device, accessory)`` labels."""
+        client = await self._connect(ble_device)
+        try:
+            return await self._read_output(client, port)
+        finally:
+            await client.disconnect()
+
+    async def async_read_vmu(self, ble_device: BLEDevice) -> bytes:
+        """Download the emulated Dreamcast VMU image (128 KiB).
+
+        Read-only: dumps the adapter's current VMU. The adapter must be idle.
+        """
+        client = await self._connect(ble_device)
+        try:
+            await client.write_gatt_char(
+                const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
+            )
+            data = bytearray()
+            while len(data) < const.VMU_SIZE:
+                chunk = await client.read_gatt_char(const.CHAR_FILE_DATA)
+                if not chunk:
+                    break
+                data += chunk
+            # Reset the file cursor for the next transfer.
+            await client.write_gatt_char(
+                const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
+            )
+            return bytes(data[: const.VMU_SIZE])
         finally:
             await client.disconnect()
 

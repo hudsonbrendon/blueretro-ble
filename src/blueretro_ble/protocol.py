@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .const import INQUIRY_MODE, MULTITAP_CFG, SYSTEM_CFG
+from .const import ACCESSORY_CFG, DEVICE_CFG, INQUIRY_MODE, MULTITAP_CFG, SYSTEM_CFG
 
 
 def _label(table: tuple[str, ...], index: int | None) -> str | None:
@@ -26,6 +26,13 @@ def decode_global_config(
     inquiry = _label(INQUIRY_MODE, raw[2]) if len(raw) >= 3 else None
     bank = raw[3] + 1 if len(raw) >= 4 else None
     return system, multitap, inquiry, bank
+
+
+def decode_output_config(raw: bytes) -> tuple[str | None, str | None]:
+    """Decode a per-output config payload into ``(device, accessory)`` labels."""
+    device = _label(DEVICE_CFG, raw[0]) if len(raw) >= 1 else None
+    accessory = _label(ACCESSORY_CFG, raw[1]) if len(raw) >= 2 else None
+    return device, accessory
 
 
 def decode_bdaddr(raw: bytes) -> str | None:
