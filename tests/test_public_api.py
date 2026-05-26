@@ -1,8 +1,8 @@
 def test_public_exports():
     from blueretro_ble import (
+        SERVICE_UUID,
         BlueRetroDevice,
         BlueRetroState,
-        SERVICE_UUID,
         supports,
     )
 
