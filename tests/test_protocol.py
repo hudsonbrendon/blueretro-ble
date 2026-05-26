@@ -1,4 +1,4 @@
-from blueretro_ble.parser import decode_abi, decode_bdaddr, decode_string
+from blueretro_ble.protocol import decode_abi, decode_bdaddr, decode_string
 
 
 def test_decode_bdaddr_reverses_byte_order():
