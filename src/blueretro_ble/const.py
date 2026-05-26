@@ -4,9 +4,13 @@ SERVICE_UUID = "56830f56-5180-fab0-314b-2fa176799a00"
 
 # Directly readable/writable characteristics
 CHAR_GLOBAL_CFG = "56830f56-5180-fab0-314b-2fa176799a01"
+CHAR_OUTPUT_CTRL = "56830f56-5180-fab0-314b-2fa176799a02"  # write uint16 output index
+CHAR_OUTPUT_DATA = "56830f56-5180-fab0-314b-2fa176799a03"  # [device, accessory] bytes
 CHAR_ABI = "56830f56-5180-fab0-314b-2fa176799a06"
 CHAR_CMD = "56830f56-5180-fab0-314b-2fa176799a07"
 CHAR_APP = "56830f56-5180-fab0-314b-2fa176799a09"
+CHAR_FILE_CTRL = "56830f56-5180-fab0-314b-2fa176799a0a"  # write uint32 offset (reset 0)
+CHAR_FILE_DATA = "56830f56-5180-fab0-314b-2fa176799a0b"  # chunked file data (VMU/pak)
 CHAR_BDADDR = "56830f56-5180-fab0-314b-2fa176799a0c"
 
 # Command bytes written to CHAR_CMD, response read back from CHAR_CMD
@@ -51,3 +55,13 @@ SYSTEM_CFG = (
 )
 MULTITAP_CFG = ("None", "Slot 1", "Slot 2", "Dual", "Alt")
 INQUIRY_MODE = ("Auto", "Manual")
+
+# Per-output config (CHAR_OUTPUT_DATA): byte 0 = device mode, byte 1 = accessory.
+DEVICE_CFG = ("GamePad", "GamePadAlt", "Keyboard", "Mouse")
+ACCESSORY_CFG = ("None", "Memory", "Rumble", "Both")
+MAX_OUTPUT = 12
+
+# Dreamcast VMU (visual memory unit) image size, transferred in chunks over
+# CHAR_FILE_CTRL (offset) + CHAR_FILE_DATA.
+VMU_SIZE = 128 * 1024
+FILE_CHUNK = 244  # MTU-sized write chunk
