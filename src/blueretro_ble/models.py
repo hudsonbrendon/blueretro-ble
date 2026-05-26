@@ -22,3 +22,6 @@ class BlueRetroState:
     multitap: str | None = None
     inquiry_mode: str | None = None
     memory_card_bank: int | None = None
+    # Output config for port 1 (read from CHAR_OUTPUT_DATA)
+    controller_mode: str | None = None
+    accessory: str | None = None

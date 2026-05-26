@@ -1,4 +1,9 @@
-from blueretro_ble.protocol import decode_abi, decode_bdaddr, decode_string
+from blueretro_ble.protocol import (
+    decode_abi,
+    decode_bdaddr,
+    decode_output_config,
+    decode_string,
+)
 
 
 def test_decode_bdaddr_reverses_byte_order():
@@ -33,3 +38,20 @@ def test_decode_abi_first_byte():
 
 def test_decode_abi_empty_returns_none():
     assert decode_abi(b"") is None
+
+
+def test_decode_output_config_full():
+    assert decode_output_config(bytes([1, 3])) == ("GamePadAlt", "Both")
+
+
+def test_decode_output_config_defaults():
+    assert decode_output_config(bytes([0, 0])) == ("GamePad", "None")
+
+
+def test_decode_output_config_memory_vmu():
+    assert decode_output_config(bytes([0, 1])) == ("GamePad", "Memory")
+
+
+def test_decode_output_config_short_and_empty():
+    assert decode_output_config(bytes([2])) == ("Keyboard", None)
+    assert decode_output_config(b"") == (None, None)

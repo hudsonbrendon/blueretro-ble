@@ -24,6 +24,9 @@ class FakeClient:
         if uuid == const.CHAR_GLOBAL_CFG:
             # system=PS2 (17), multitap=None (0), inquiry=Manual (1), bank byte 0 -> 1
             return bytes([17, 0, 1, 0])
+        if uuid == const.CHAR_OUTPUT_DATA:
+            # device=GamePad (0), accessory=Memory (1)
+            return bytes([0, 1])
         if uuid == const.CHAR_CMD:
             if self._last_cmd == const.CMD_GET_GAMEID:
                 return b"GALE01"
@@ -34,8 +37,12 @@ class FakeClient:
         raise AssertionError(f"unexpected read {uuid}")
 
     async def write_gatt_char(self, uuid, data, response=True):
-        assert uuid == const.CHAR_CMD
-        self._last_cmd = data[0]
+        if uuid == const.CHAR_CMD:
+            self._last_cmd = data[0]
+        elif uuid == const.CHAR_OUTPUT_CTRL:
+            self._selected_output = data
+        else:
+            raise AssertionError(f"unexpected write {uuid}")
 
 
 @pytest.fixture
@@ -67,6 +74,8 @@ async def test_async_update_reads_all_fields(fake_ble_device):
     assert state.multitap == "None"
     assert state.inquiry_mode == "Manual"
     assert state.memory_card_bank == 1
+    assert state.controller_mode == "GamePad"
+    assert state.accessory == "Memory"
     client.disconnect.assert_awaited_once()
 
 

@@ -13,10 +13,33 @@ web tool. The config interface is only reachable while the adapter is **idle**
 | UUID suffix | Name | Access | Meaning |
 |-------------|------|--------|---------|
 | `…a01` | global config | read/write | system, multitap, inquiry mode, memory card bank (1 byte each) |
+| `…a02` | output control | write | uint16 output/port index to select |
+| `…a03` | output config | read/write | `[device, accessory]` for the selected output |
 | `…a06` | ABI version | read | first byte = ABI int |
 | `…a07` | command | write 1 byte, then read | see commands below |
 | `…a09` | app / firmware version | read | UTF-8 string |
+| `…a0a` | file control | write | uint32 offset (reset to 0 around a transfer) |
+| `…a0b` | file data | read/write | chunked file payload (e.g. Dreamcast VMU) |
 | `…a0c` | BD address | read | 6 bytes, reversed |
+
+## Per-output config (`…a03`)
+
+Select the output by writing its uint16 index to `…a02`, then read/write 2 bytes
+on `…a03`:
+
+| Byte | Field | Values |
+|------|-------|--------|
+| 0 | device mode | `GamePad`, `GamePadAlt`, `Keyboard`, `Mouse` |
+| 1 | accessory | `None`, `Memory` (VMU), `Rumble` (Jump Pack), `Both` |
+
+Up to 12 outputs. On Dreamcast each output maps to a port; only one output may
+use `Memory`/`Both` (a single emulated VMU).
+
+## Dreamcast VMU transfer (`…a0a` / `…a0b`)
+
+The emulated VMU is a 128 KiB image. Reset the cursor by writing a uint32 `0` to
+`…a0a`, then read `…a0b` repeatedly (each read returns an MTU-sized chunk) until
+128 KiB are collected (write chunks the same way), then reset the cursor to `0`.
 
 ## Commands (written to `…a07`, response read back)
 
