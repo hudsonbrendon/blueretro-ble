@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from blueretro_ble.const import SERVICE_UUID
-from blueretro_ble.discovery import supports
+from blueretro_ble.scanner import discover, supports
 
 
 @dataclass
@@ -38,3 +40,18 @@ def test_supports_rejects_unrelated_device():
 
 def test_supports_rejects_empty():
     assert supports(FakeInfo()) is False
+
+
+async def test_discover_filters_blueretro():
+    br = SimpleNamespace(address="AA:BB:CC:DD:EE:FF", name="BlueRetro_F25E")
+    other = SimpleNamespace(address="11:22:33:44:55:66", name="SomeSpeaker")
+    discovered = {
+        br.address: (br, SimpleNamespace(local_name="BlueRetro_F25E", service_uuids=[])),
+        other.address: (other, SimpleNamespace(local_name="SomeSpeaker", service_uuids=[])),
+    }
+    with patch(
+        "blueretro_ble.scanner.BleakScanner.discover",
+        AsyncMock(return_value=discovered),
+    ):
+        found = await discover()
+    assert [d.address for d in found] == ["AA:BB:CC:DD:EE:FF"]

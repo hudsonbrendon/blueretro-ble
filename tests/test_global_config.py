@@ -1,4 +1,4 @@
-from blueretro_ble.parser import decode_global_config
+from blueretro_ble.protocol import decode_global_config
 
 
 def test_decode_full_payload():

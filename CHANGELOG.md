@@ -6,6 +6,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-26
+
+### Changed
+- Restructured the project to a `src/` layout built with hatchling, with modules
+  split into `const` / `protocol` / `scanner` / `device` / `models` / `gameid`
+  (the `parser` module is now `protocol`, `discovery` is now `scanner`). The
+  public API (`BlueRetroDevice`, `BlueRetroState`, `supports`, the enums) is
+  unchanged.
+
+### Added
+- `scanner.discover()` to actively scan for nearby adapters, and a `blueretro`
+  command-line tool (`blueretro scan|info|reboot|sleep`).
+- ruff linting, a Python 3.11–3.13 CI matrix, Dependabot, and `HARDWARE.md`
+  documenting the BLE protocol.
+
 ## [0.1.2] - 2026-05-25
 
 ### Added
@@ -32,7 +47,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `BlueRetroState` model, bundled-SQLite game name lookup, and `BlueRetroDevice`
   (read cycle + reboot/deep-sleep). Extracted from the Home Assistant integration.
 
-[Unreleased]: https://github.com/hudsonbrendon/blueretro-ble/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/hudsonbrendon/blueretro-ble/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.2.0
 [0.1.2]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.1.2
 [0.1.1]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.1.1
 [0.1.0]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.1.0

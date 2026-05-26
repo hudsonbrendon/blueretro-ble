@@ -40,10 +40,22 @@ await device.async_reboot(ble_device)
 await device.async_deep_sleep(ble_device)
 ```
 
-`async_update` connects, reads ABI/firmware/BD-address directly, runs two
-command-then-read cycles (game id, config source), resolves the game name from
+`async_update` connects, reads ABI/firmware/BD-address directly, runs the
+command-then-read cycles (game id, config source, firmware name), reads the
+global config (system/multitap/inquiry/card bank), resolves the game name from
 the bundled `gameid.db`, always disconnects, and never raises — on failure it
 returns a `BlueRetroState(available=False)`.
+
+## CLI
+
+Installing the package provides a `blueretro` command (also `python -m blueretro_ble`):
+
+```bash
+blueretro scan                       # list nearby adapters
+blueretro info AA:BB:CC:DD:EE:FF     # connect and print the full state
+blueretro reboot AA:BB:CC:DD:EE:FF
+blueretro sleep AA:BB:CC:DD:EE:FF
+```
 
 ## Notes
 

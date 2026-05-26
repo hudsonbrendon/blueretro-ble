@@ -12,7 +12,12 @@ from bleak_retry_connector import establish_connection
 from . import const
 from .gameid import lookup_game_name
 from .models import BlueRetroState
-from .parser import decode_abi, decode_bdaddr, decode_global_config, decode_string
+from .protocol import (
+    decode_abi,
+    decode_bdaddr,
+    decode_global_config,
+    decode_string,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
