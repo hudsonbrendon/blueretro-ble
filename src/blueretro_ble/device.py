@@ -197,6 +197,55 @@ class BlueRetroDevice:
         finally:
             await client.disconnect()
 
+    async def async_set_output_config(
+        self,
+        ble_device: BLEDevice,
+        port: int = 0,
+        *,
+        device: str | None = None,
+        accessory: str | None = None,
+    ) -> None:
+        """Set a port's device mode and/or accessory.
+
+        ``device`` is a ``DEVICE_CFG`` label, ``accessory`` an ``ACCESSORY_CFG``
+        label; ``None`` leaves that byte unchanged. Raises ``ValueError`` for
+        unknown labels. Writes 2 bytes (`[device, accessory]`); no reboot needed.
+        """
+        dev_idx = None
+        if device is not None:
+            if device not in const.DEVICE_CFG:
+                raise ValueError(f"invalid device mode {device!r}")
+            dev_idx = const.DEVICE_CFG.index(device)
+        acc_idx = None
+        if accessory is not None:
+            if accessory not in const.ACCESSORY_CFG:
+                raise ValueError(f"invalid accessory {accessory!r}")
+            acc_idx = const.ACCESSORY_CFG.index(accessory)
+
+        client = await self._connect(ble_device)
+        try:
+            await client.write_gatt_char(
+                const.CHAR_OUTPUT_CTRL, struct.pack("<H", port), response=True
+            )
+            current = bytearray(
+                await client.read_gatt_char(const.CHAR_OUTPUT_DATA)
+            )
+            while len(current) < 2:
+                current.append(0)
+            if dev_idx is not None:
+                current[0] = dev_idx
+            if acc_idx is not None:
+                current[1] = acc_idx
+            # Re-select the output, then write the new config.
+            await client.write_gatt_char(
+                const.CHAR_OUTPUT_CTRL, struct.pack("<H", port), response=True
+            )
+            await client.write_gatt_char(
+                const.CHAR_OUTPUT_DATA, bytes(current[:2]), response=True
+            )
+        finally:
+            await client.disconnect()
+
     async def async_read_vmu(self, ble_device: BLEDevice) -> bytes:
         """Download the emulated Dreamcast VMU image (128 KiB).
 
