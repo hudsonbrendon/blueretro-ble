@@ -201,18 +201,26 @@ class BlueRetroDevice:
         """Download the emulated Dreamcast VMU image (128 KiB).
 
         Read-only: dumps the adapter's current VMU. The adapter must be idle.
+        Raises ``RuntimeError`` (with bytes-read and MTU for diagnostics) if the
+        adapter rejects the chunked read.
         """
         client = await self._connect(ble_device)
+        mtu = getattr(client, "mtu_size", None)
         try:
             await client.write_gatt_char(
                 const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
             )
             data = bytearray()
-            while len(data) < const.VMU_SIZE:
-                chunk = await client.read_gatt_char(const.CHAR_FILE_DATA)
-                if not chunk:
-                    break
-                data += chunk
+            try:
+                while len(data) < const.VMU_SIZE:
+                    chunk = await client.read_gatt_char(const.CHAR_FILE_DATA)
+                    if not chunk:
+                        break
+                    data += chunk
+            except (BleakError, TimeoutError, OSError) as err:
+                raise RuntimeError(
+                    f"VMU read failed after {len(data)} bytes (mtu={mtu}): {err}"
+                ) from err
             # Reset the file cursor for the next transfer.
             await client.write_gatt_char(
                 const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True

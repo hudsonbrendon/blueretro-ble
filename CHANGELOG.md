@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-26
+
+### Changed
+- `async_read_vmu()` now raises a descriptive `RuntimeError` (including bytes
+  read so far and the negotiated MTU) when the adapter rejects the chunked read,
+  to diagnose VMU transfer failures on the BlueZ stack.
+
 ## [0.3.0] - 2026-05-26
 
 ### Added
@@ -57,7 +64,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `BlueRetroState` model, bundled-SQLite game name lookup, and `BlueRetroDevice`
   (read cycle + reboot/deep-sleep). Extracted from the Home Assistant integration.
 
-[Unreleased]: https://github.com/hudsonbrendon/blueretro-ble/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/hudsonbrendon/blueretro-ble/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.3.1
 [0.3.0]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.2.0
 [0.1.2]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.1.2
