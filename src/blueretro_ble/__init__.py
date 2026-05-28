@@ -9,10 +9,11 @@ from .const import (
     SYSTEM_CFG,
 )
 from .device import BlueRetroDevice
+from .firmware import parse_firmware
 from .models import BlueRetroState
 from .scanner import discover, supports
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "ACCESSORY_CFG",
@@ -24,6 +25,7 @@ __all__ = [
     "SERVICE_UUID",
     "SYSTEM_CFG",
     "discover",
+    "parse_firmware",
     "supports",
     "__version__",
 ]

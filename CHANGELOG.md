@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-28
+
+### Added
+- `parse_firmware()` — split the adapter firmware string into
+  `(sw_version, hw_version, platform)`. (Moved here from the HA integration so all
+  BlueRetro logic lives in the library.)
+
+### Changed
+- README rewritten to the standard library layout.
+
 ## [0.4.0] - 2026-05-26
 
 ### Added
@@ -70,7 +80,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `BlueRetroState` model, bundled-SQLite game name lookup, and `BlueRetroDevice`
   (read cycle + reboot/deep-sleep). Extracted from the Home Assistant integration.
 
-[Unreleased]: https://github.com/hudsonbrendon/blueretro-ble/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/hudsonbrendon/blueretro-ble/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.5.0
 [0.4.0]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.4.0
 [0.3.1]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.3.1
 [0.3.0]: https://github.com/hudsonbrendon/blueretro-ble/releases/tag/v0.3.0
