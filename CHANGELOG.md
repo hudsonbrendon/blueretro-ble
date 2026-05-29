@@ -6,6 +6,30 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-29
+
+### Added
+- **Memory-card writes & N64 Controller Pak.** `async_write_vmu` (128 KiB),
+  `async_read_pak` / `async_write_pak` / `async_format_pak` (32 KiB banks 0–3).
+  Writes are block-aligned (never cross a 4 KiB boundary) per firmware
+  requirement. `make_formatted_pak()` generates a blank, valid pak image (ported
+  from BlueRetroWebCfg / bryc's MPKEdit).
+- **Config files manager.** `async_list_files` and `async_delete_file` over the
+  command characteristic.
+- **OTA firmware update.** `async_ota_update(firmware, progress=...)` streams a
+  `BlueRetro_*.bin` image and reboots into it, aborting cleanly on error.
+- **Advanced input mapping.** `InputMapping` model plus `async_read_input_config`
+  / `async_write_input_config`, and pure `encode_input_config` /
+  `decode_input_config` (8-byte entries: src/dest/dest_id/max/threshold/deadzone/
+  turbo/scaling+diag).
+- New constants/UUIDs: `CHAR_IN_CFG_CTRL/DATA`, `CHAR_OTA_FW_DATA`, file/dir/OTA
+  command opcodes, `PAK_SIZE`, `PAK_BANKS`, `MC_BLOCK`, `IN_CFG_CHUNK`.
+
+### Note
+- Large transfers (VMU/pak/OTA) require a large negotiated MTU. They work over a
+  desktop browser stack (MTU 517) but may fail over Linux/BlueZ (MTU 23) — the
+  same limitation that affects VMU backup.
+
 ## [0.6.0] - 2026-05-29
 
 ### Added

@@ -30,3 +30,24 @@ class BlueRetroState:
     # ``(device, accessory)`` label pair. Populated by ``async_update`` for as
     # many ports as the caller requests (default: just port 0).
     ports: dict[int, tuple[str | None, str | None]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class InputMapping:
+    """One advanced-config input mapping entry (8 bytes on the wire).
+
+    All fields are raw values matching BlueRetro's advanced config:
+    ``src``/``dest`` are button/axis ids, ``dest_id`` the destination output
+    index, ``max``/``threshold``/``deadzone`` scaling parameters, ``turbo`` the
+    turbo mask, and ``scaling``/``diag_scaling`` 4-bit response-curve selectors.
+    """
+
+    src: int
+    dest: int
+    dest_id: int = 0
+    max: int = 0
+    threshold: int = 0
+    deadzone: int = 0
+    turbo: int = 0
+    scaling: int = 0
+    diag_scaling: int = 0
