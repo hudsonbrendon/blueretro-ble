@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from .const import ACCESSORY_CFG, DEVICE_CFG, INQUIRY_MODE, MULTITAP_CFG, SYSTEM_CFG
+from .const import (
+    ACCESSORY_CFG,
+    DEVICE_CFG,
+    INQUIRY_MODE,
+    MAX_MAPPINGS,
+    MULTITAP_CFG,
+    SYSTEM_CFG,
+)
+from .models import InputMapping
 
 
 def _label(table: tuple[str, ...], index: int | None) -> str | None:
@@ -53,3 +61,60 @@ def decode_abi(raw: bytes) -> int | None:
     if not raw:
         return None
     return raw[0]
+
+
+def encode_input_config(mappings: list[InputMapping]) -> bytes:
+    """Encode input mappings into the CHAR_IN_CFG_DATA blob.
+
+    Layout: ``[0, 0, n]`` then ``n`` 8-byte entries
+    ``[src, dest, dest_id, max, threshold, deadzone, turbo,
+    (scaling & 0x0F) | (diag_scaling << 4)]``. Raises ``ValueError`` if there
+    are more than ``MAX_MAPPINGS`` entries or any byte is out of 0..255.
+    """
+    if len(mappings) > MAX_MAPPINGS:
+        raise ValueError(f"at most {MAX_MAPPINGS} mappings allowed")
+    out = bytearray([0, 0, len(mappings)])
+    for m in mappings:
+        packed = (m.scaling & 0x0F) | ((m.diag_scaling & 0x0F) << 4)
+        entry = (
+            m.src,
+            m.dest,
+            m.dest_id,
+            m.max,
+            m.threshold,
+            m.deadzone,
+            m.turbo,
+            packed,
+        )
+        for value in entry:
+            if not 0 <= value <= 255:
+                raise ValueError(f"input mapping byte out of range: {value}")
+        out += bytes(entry)
+    return bytes(out)
+
+
+def decode_input_config(raw: bytes) -> list[InputMapping]:
+    """Decode a CHAR_IN_CFG_DATA blob into input mappings (inverse of encode)."""
+    if len(raw) < 3:
+        return []
+    count = raw[2]
+    mappings: list[InputMapping] = []
+    for i in range(count):
+        base = 3 + i * 8
+        if base + 8 > len(raw):
+            break
+        e = raw[base : base + 8]
+        mappings.append(
+            InputMapping(
+                src=e[0],
+                dest=e[1],
+                dest_id=e[2],
+                max=e[3],
+                threshold=e[4],
+                deadzone=e[5],
+                turbo=e[6],
+                scaling=e[7] & 0x0F,
+                diag_scaling=(e[7] >> 4) & 0x0F,
+            )
+        )
+    return mappings
