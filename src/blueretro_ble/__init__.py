@@ -13,7 +13,7 @@ from .firmware import parse_firmware
 from .models import BlueRetroState
 from .scanner import discover, supports
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "ACCESSORY_CFG",

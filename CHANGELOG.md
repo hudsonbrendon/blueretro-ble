@@ -6,6 +6,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-29
+
+### Added
+- **Multi-port output config.** `BlueRetroState.ports` now holds a
+  `{port: (device, accessory)}` mapping. `async_update(ble_device, output_ports=N)`
+  reads the first `N` ports (clamped to `1..MAX_OUTPUT`) in a single connection;
+  port 0 still mirrors into `controller_mode` / `accessory` for backward
+  compatibility (default `output_ports=1` keeps the previous behavior).
+- **`async_read_outputs(ble_device, ports=N)`** — read several ports' output
+  configs in one connection, returning a `{port: (device, accessory)}` mapping.
+
 ## [0.5.0] - 2026-05-28
 
 ### Added

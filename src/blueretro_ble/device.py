@@ -35,8 +35,17 @@ class BlueRetroDevice:
             BleakClient, ble_device, ble_device.address
         )
 
-    async def async_update(self, ble_device: BLEDevice) -> BlueRetroState:
-        """Connect, read all fields, disconnect. Never raises."""
+    async def async_update(
+        self, ble_device: BLEDevice, output_ports: int = 1
+    ) -> BlueRetroState:
+        """Connect, read all fields, disconnect. Never raises.
+
+        ``output_ports`` controls how many output ports' configs are read in the
+        single connection (clamped to 1..``const.MAX_OUTPUT``); the results land
+        in ``state.ports`` and port 0 also mirrors into ``controller_mode`` /
+        ``accessory`` for backward compatibility.
+        """
+        output_ports = max(1, min(int(output_ports), const.MAX_OUTPUT))
         try:
             client = await self._connect(ble_device)
         except (BleakError, TimeoutError, OSError) as err:
@@ -59,7 +68,10 @@ class BlueRetroDevice:
                 await self._read_global_config(client)
             )
             fw_name = await self._read_fw_name(client)
-            controller_mode, accessory = await self._read_output(client, 0)
+            ports: dict[int, tuple[str | None, str | None]] = {}
+            for port in range(output_ports):
+                ports[port] = await self._read_output(client, port)
+            controller_mode, accessory = ports[0]
         except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
             _LOGGER.debug("BlueRetro read failed: %s", err)
             self.last_state = BlueRetroState(available=False)
@@ -82,6 +94,7 @@ class BlueRetroDevice:
             memory_card_bank=memory_card_bank,
             controller_mode=controller_mode,
             accessory=accessory,
+            ports=ports,
         )
         self.last_state = state
         return state
@@ -194,6 +207,21 @@ class BlueRetroDevice:
         client = await self._connect(ble_device)
         try:
             return await self._read_output(client, port)
+        finally:
+            await client.disconnect()
+
+    async def async_read_outputs(
+        self, ble_device: BLEDevice, ports: int = const.MAX_OUTPUT
+    ) -> dict[int, tuple[str | None, str | None]]:
+        """Read several ports' output configs in one connection.
+
+        Returns a ``{port: (device, accessory)}`` mapping for ports
+        ``0..ports-1`` (``ports`` clamped to 1..``const.MAX_OUTPUT``).
+        """
+        ports = max(1, min(int(ports), const.MAX_OUTPUT))
+        client = await self._connect(ble_device)
+        try:
+            return {p: await self._read_output(client, p) for p in range(ports)}
         finally:
             await client.disconnect()
 

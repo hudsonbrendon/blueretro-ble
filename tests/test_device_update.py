@@ -122,6 +122,79 @@ async def test_async_update_disconnects_even_on_read_error(fake_ble_device):
     client.disconnect.assert_awaited_once()
 
 
+async def test_async_update_default_reads_only_port_0(fake_ble_device):
+    """With no port count given, only port 0 lands in ``ports``."""
+    client = FakeClient()
+    with (
+        patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)),
+        patch("blueretro_ble.device.lookup_game_name", return_value=None),
+    ):
+        state = await BlueRetroDevice().async_update(fake_ble_device)
+
+    assert set(state.ports) == {0}
+    assert state.ports[0] == ("GamePad", "Memory")
+    # Port 0 still mirrors into the legacy fields.
+    assert state.controller_mode == "GamePad"
+    assert state.accessory == "Memory"
+
+
+class MultiPortClient(FakeClient):
+    """Returns a distinct output config per selected port."""
+
+    import struct as _struct
+
+    _PORT_CFG = {
+        0: bytes([0, 1]),  # GamePad, Memory
+        1: bytes([1, 2]),  # GamePadAlt, Rumble
+        2: bytes([2, 0]),  # Keyboard, None
+    }
+
+    async def read_gatt_char(self, uuid):
+        if uuid == const.CHAR_OUTPUT_DATA:
+            port = self._struct.unpack("<H", self._selected_output)[0]
+            return self._PORT_CFG.get(port, bytes([0, 0]))
+        return await super().read_gatt_char(uuid)
+
+
+async def test_async_update_reads_multiple_ports(fake_ble_device):
+    client = MultiPortClient()
+    with (
+        patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)),
+        patch("blueretro_ble.device.lookup_game_name", return_value=None),
+    ):
+        state = await BlueRetroDevice().async_update(fake_ble_device, output_ports=3)
+
+    assert state.ports == {
+        0: ("GamePad", "Memory"),
+        1: ("GamePadAlt", "Rumble"),
+        2: ("Keyboard", "None"),
+    }
+    assert (state.controller_mode, state.accessory) == ("GamePad", "Memory")
+    client.disconnect.assert_awaited_once()
+
+
+async def test_async_update_clamps_port_count(fake_ble_device):
+    client = MultiPortClient()
+    with (
+        patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)),
+        patch("blueretro_ble.device.lookup_game_name", return_value=None),
+    ):
+        state = await BlueRetroDevice().async_update(fake_ble_device, output_ports=999)
+
+    assert len(state.ports) == const.MAX_OUTPUT
+
+
+async def test_async_read_outputs_helper(fake_ble_device):
+    client = MultiPortClient()
+    with patch(
+        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
+    ):
+        result = await BlueRetroDevice().async_read_outputs(fake_ble_device, ports=2)
+
+    assert result == {0: ("GamePad", "Memory"), 1: ("GamePadAlt", "Rumble")}
+    client.disconnect.assert_awaited_once()
+
+
 async def test_async_update_connection_failure_returns_unavailable(fake_ble_device):
     from bleak.exc import BleakError
 

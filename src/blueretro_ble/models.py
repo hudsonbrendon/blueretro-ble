@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(slots=True)
@@ -22,6 +22,11 @@ class BlueRetroState:
     multitap: str | None = None
     inquiry_mode: str | None = None
     memory_card_bank: int | None = None
-    # Output config for port 1 (read from CHAR_OUTPUT_DATA)
+    # Output config for port 1 (read from CHAR_OUTPUT_DATA). Kept for backward
+    # compatibility; mirrors ``ports[0]``.
     controller_mode: str | None = None
     accessory: str | None = None
+    # Output config per port, keyed by 0-based port index, each value a
+    # ``(device, accessory)`` label pair. Populated by ``async_update`` for as
+    # many ports as the caller requests (default: just port 0).
+    ports: dict[int, tuple[str | None, str | None]] = field(default_factory=dict)
