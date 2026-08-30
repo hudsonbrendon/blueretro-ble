@@ -83,3 +83,23 @@ async def test_async_set_global_config_rejects_unknown_value(fake_ble_device):
             await BlueRetroDevice().async_set_global_config(
                 fake_ble_device, system="NotAConsole"
             )
+
+
+@pytest.mark.parametrize(
+    ("source", "cmd"),
+    [("Game ID", const.CMD_SET_GAMEID_CFG), ("Default", const.CMD_SET_DEFAULT_CFG)],
+)
+async def test_async_set_config_source(fake_ble_device, source, cmd):
+    client = AsyncMock()
+    with patch(
+        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
+    ):
+        await BlueRetroDevice().async_set_config_source(fake_ble_device, source)
+    client.write_gatt_char.assert_awaited_once_with(
+        const.CHAR_CMD, bytes([cmd]), response=True
+    )
+
+
+async def test_async_set_config_source_rejects_unknown(fake_ble_device):
+    with pytest.raises(ValueError):
+        await BlueRetroDevice().async_set_config_source(fake_ble_device, "nope")

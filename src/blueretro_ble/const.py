@@ -21,6 +21,8 @@ CMD_GET_GAMEID = 0x04
 CMD_GET_CFG_SRC = 0x05
 CMD_GET_FILE = 0x06
 CMD_GET_FW_NAME = 0x07
+CMD_SET_DEFAULT_CFG = 0x10  # drop the current game's config file, reload default
+CMD_SET_GAMEID_CFG = 0x11  # save the current config as the current game's file
 CMD_OPEN_DIR = 0x12
 CMD_CLOSE_DIR = 0x13
 CMD_DEL_FILE = 0x14
@@ -65,6 +67,8 @@ SYSTEM_CFG = (
 )
 MULTITAP_CFG = ("None", "Slot 1", "Slot 2", "Dual", "Alt")
 INQUIRY_MODE = ("Auto", "Manual")
+# Config source reported by CMD_GET_CFG_SRC: 0 = default config, 1 = per-GameID file.
+CFG_SRC = ("Default", "Game ID")
 
 # Per-output config (CHAR_OUTPUT_DATA): byte 0 = device mode, byte 1 = accessory.
 DEVICE_CFG = ("GamePad", "GamePadAlt", "Keyboard", "Mouse")

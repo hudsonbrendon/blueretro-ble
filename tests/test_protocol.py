@@ -55,3 +55,12 @@ def test_decode_output_config_memory_vmu():
 def test_decode_output_config_short_and_empty():
     assert decode_output_config(bytes([2])) == ("Keyboard", None)
     assert decode_output_config(b"") == (None, None)
+
+
+def test_decode_cfg_src():
+    from blueretro_ble.protocol import decode_cfg_src
+
+    assert decode_cfg_src(0) == "Default"
+    assert decode_cfg_src(1) == "Game ID"
+    assert decode_cfg_src(7) is None
+    assert decode_cfg_src(None) is None

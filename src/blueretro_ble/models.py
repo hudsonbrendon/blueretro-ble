@@ -17,6 +17,8 @@ class BlueRetroState:
     game_id: str | None = None
     game_name: str | None = None
     cfg_src: int | None = None
+    # ``cfg_src`` as a label from ``const.CFG_SRC`` ("Default" / "Game ID").
+    config_source: str | None = None
     # Global config (read from CHAR_GLOBAL_CFG)
     system: str | None = None
     multitap: str | None = None

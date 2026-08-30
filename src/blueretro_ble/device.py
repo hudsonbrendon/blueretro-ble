@@ -15,9 +15,11 @@ from . import const
 from .gameid import lookup_game_name
 from .memorycard import make_formatted_pak
 from .models import BlueRetroState, InputMapping
+from .presets import Preset
 from .protocol import (
     decode_abi,
     decode_bdaddr,
+    decode_cfg_src,
     decode_global_config,
     decode_input_config,
     decode_output_config,
@@ -91,6 +93,7 @@ class BlueRetroDevice:
             bdaddr=bdaddr,
             game_id=game_id,
             cfg_src=cfg_src,
+            config_source=decode_cfg_src(cfg_src),
             game_name=lookup_game_name(game_id),
             system=system,
             multitap=multitap,
@@ -147,6 +150,24 @@ class BlueRetroDevice:
     async def async_deep_sleep(self, ble_device: BLEDevice) -> None:
         """Put the adapter into deep sleep."""
         await self._send_command(ble_device, const.CMD_SYS_DEEP_SLEEP)
+
+    async def async_set_config_source(
+        self, ble_device: BLEDevice, source: str
+    ) -> None:
+        """Switch the active config source (``const.CFG_SRC`` label).
+
+        ``"Game ID"`` saves the current config as the running game's file;
+        ``"Default"`` deletes that file and reloads the default config (same
+        as the web config's Default/GameID buttons).
+        """
+        if source not in const.CFG_SRC:
+            raise ValueError(f"unknown config source {source!r}")
+        cmd = (
+            const.CMD_SET_GAMEID_CFG
+            if source == "Game ID"
+            else const.CMD_SET_DEFAULT_CFG
+        )
+        await self._send_command(ble_device, cmd)
 
     async def async_factory_reset(self, ble_device: BLEDevice) -> None:
         """Factory-reset the adapter (erases all configuration). Destructive."""
@@ -563,6 +584,21 @@ class BlueRetroDevice:
                     break
         finally:
             await client.disconnect()
+
+    async def async_apply_preset(
+        self,
+        ble_device: BLEDevice,
+        preset: Preset,
+        cfg_id: int = 0,
+        port: int = 0,
+    ) -> None:
+        """Write a bundled/loaded preset's mappings to a config slot.
+
+        ``port`` is added to each mapping's ``dest_id`` (web config ``cfgId``).
+        """
+        await self.async_write_input_config(
+            ble_device, cfg_id, preset.mappings(port)
+        )
 
     async def _send_command(self, ble_device: BLEDevice, command: int) -> None:
         client = await self._connect(ble_device)

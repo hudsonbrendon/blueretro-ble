@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .const import (
     ACCESSORY_CFG,
+    CFG_SRC,
     DEVICE_CFG,
     INQUIRY_MODE,
     MAX_MAPPINGS,
@@ -41,6 +42,11 @@ def decode_output_config(raw: bytes) -> tuple[str | None, str | None]:
     device = _label(DEVICE_CFG, raw[0]) if len(raw) >= 1 else None
     accessory = _label(ACCESSORY_CFG, raw[1]) if len(raw) >= 2 else None
     return device, accessory
+
+
+def decode_cfg_src(index: int | None) -> str | None:
+    """Map a CMD_GET_CFG_SRC byte to its label (\"Default\" / \"Game ID\")."""
+    return _label(CFG_SRC, index)
 
 
 def decode_bdaddr(raw: bytes) -> str | None:
