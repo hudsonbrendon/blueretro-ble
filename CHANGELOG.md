@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-30
+
+### Added
+- **Config source switch.** `BlueRetroDevice.async_set_config_source(ble, "Game ID" | "Default")`
+  (firmware cmds `0x11` / `0x10`, same as the web config's GameID/Default
+  buttons). `BlueRetroState.config_source` carries the label; `const.CFG_SRC`.
+- **Bundled presets.** The 35 input-mapping presets from
+  `darthcloud/BlueRetroWebCfg/map` ship in the package: `list_presets()`,
+  `load_preset(id)`, `preset_from_json(text)`, `Preset.mappings(port)` and
+  `BlueRetroDevice.async_apply_preset(ble, preset, cfg_id, port)`. Button names
+  resolve through `blueretro_ble.buttons.BUTTONS`.
+
 ## [0.7.0] - 2026-05-29
 
 ### Added
