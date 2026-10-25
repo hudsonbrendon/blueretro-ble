@@ -35,11 +35,41 @@ on `…a03`:
 Up to 12 outputs. On Dreamcast each output maps to a port; only one output may
 use `Memory`/`Both` (a single emulated VMU).
 
-## Dreamcast VMU transfer (`…a0a` / `…a0b`)
+## Memory-card transfer (`…a0a` / `…a0b`)
 
-The emulated VMU is a 128 KiB image. Reset the cursor by writing a uint32 `0` to
-`…a0a`, then read `…a0b` repeatedly (each read returns an MTU-sized chunk) until
-128 KiB are collected (write chunks the same way), then reset the cursor to `0`.
+One flat 128 KiB buffer (32 × 4 KiB blocks): the whole Dreamcast VMU, or four
+32 KiB N64 Controller Pak banks. Write a uint32 byte offset to `…a0a`, then read
+or write `…a0b` repeatedly; finish by writing `0` to `…a0a`.
+
+Verified in the shipped v25.04 Dreamcast binary (Ghidra via REA; `mc_offset`
+@ `0x3ffc933c`, `mtu` @ `0x3ffbe06a`, read handler `0x400de9d4`, ATT handler
+`0x400dea28`):
+
+- **One global cursor**, auto-advanced by every data read/write and only set by
+  writes to `…a0a`. Resuming a dropped transfer = writing the offset again.
+- A **read** returns `min(bytes left in the 4 KiB block, (mtu - 2) & ~3)`, so
+  the first chunk length reveals the negotiated MTU. Reads never return empty.
+- The **MTU is a global** too: set by each MTU exchange and never reset on
+  disconnect.
+- A write longer than one ATT packet turns into prepare/execute writes, and
+  **every execute rewrites the config file to flash** (`config_update`) unless
+  an OTA is running. Size data writes to a single Write Request instead.
+- Writes reach flash asynchronously: 1 s after the last write, then one 4 KiB
+  block every 20 ms (`mc_store_spread`). Wait a few seconds before power-off.
+- **VMU byte order:** the buffer holds Maple bus words, each 32-bit word
+  byte-reversed versus a standard VMU `.bin` (the web config swaps both ways).
+  N64 paks are stored as-is.
+
+## Advertising and connection parameters
+
+- Advertises connectable `ADV_IND` every 100 ms (interval `0xA0`) while idle.
+  Advertising stops when any Bluetooth controller connects and resumes only
+  after the last one disconnects (`hci.c`), so "no advertisements" = in use
+  (or powered off).
+- The first **read** of `…a07` asks the central for a 7.5-15 ms connection
+  interval (supervision timeout 9.6 s). macOS showed ~105 ms per read either way.
+- Game IDs come from the console only on N64, GameCube (SI) and PS1/PS2 (SPI);
+  other systems report the system name (e.g. `DC`) set at boot.
 
 ## Commands (written to `…a07`, response read back)
 

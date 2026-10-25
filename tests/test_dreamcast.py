@@ -81,6 +81,8 @@ async def test_async_read_vmu_accumulates_chunks(fake_ble_device):
     remaining = {"n": const.VMU_SIZE}
 
     async def read(uuid):
+        if uuid == const.CHAR_CMD:
+            return b"\x02"
         assert uuid == const.CHAR_FILE_DATA
         take = min(const.FILE_CHUNK, remaining["n"])
         remaining["n"] -= take

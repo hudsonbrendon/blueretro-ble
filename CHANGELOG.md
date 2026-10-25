@@ -6,6 +6,30 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-25
+
+Findings from reverse engineering the shipped v25.04 firmware (see `HARDWARE.md`).
+
+### Added
+- **VMU save list.** On Dreamcast adapters with an emulated VMU, `async_update`
+  reads the card's directory (last 8 KiB) and fills `BlueRetroState.vmu_saves`
+  (`VmuSave`: name, kind, blocks, saved) and `vmu_free_blocks`.
+  `parse_vmu_directory()` and `vmu_swap()` are public.
+- Progress callback on `async_read_vmu` / `async_read_pak`.
+- CLI: `blueretro vmu-backup ADDRESS FILE` and `pak-backup ADDRESS BANK FILE`.
+
+### Changed
+- **VMU images use the standard byte order.** `async_read_vmu` returns and
+  `async_write_vmu` takes the same `vmu.bin` as the web config and emulators;
+  the adapter's Maple word order is converted internally. Images saved with
+  0.7/0.8 are raw adapter order: convert them once with `vmu_swap()`.
+- **Memory-card transfers survive link drops and small MTUs.** They reconnect
+  and resume at the last acknowledged byte (`const.TRANSFER_RETRIES` attempts
+  without progress), and data writes fit in one ATT Write Request: long writes
+  made the firmware rewrite its config file to flash on every chunk.
+- Bulk transfers first read `CMD`, which makes the firmware request its fast
+  connection interval.
+
 ## [0.8.0] - 2026-08-30
 
 ### Added
