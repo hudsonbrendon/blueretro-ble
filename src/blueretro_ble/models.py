@@ -3,6 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
+
+
+@dataclass(slots=True)
+class VmuSave:
+    """One file in a Dreamcast VMU directory."""
+
+    name: str
+    kind: str  # "data" (save) or "game" (VMU mini-game)
+    blocks: int
+    saved: datetime | None = None
 
 
 @dataclass(slots=True)
@@ -32,6 +43,11 @@ class BlueRetroState:
     # ``(device, accessory)`` label pair. Populated by ``async_update`` for as
     # many ports as the caller requests (default: just port 0).
     ports: dict[int, tuple[str | None, str | None]] = field(default_factory=dict)
+    # Dreamcast with an emulated VMU (accessory Memory/Both): its save files and
+    # free blocks, read from the card's directory on every update. ``None``
+    # when there is no VMU or the card is unformatted.
+    vmu_saves: list[VmuSave] | None = None
+    vmu_free_blocks: int | None = None
 
 
 @dataclass(slots=True)

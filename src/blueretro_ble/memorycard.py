@@ -1,10 +1,86 @@
-"""N64 Controller Pak helpers."""
+"""Memory-card helpers: N64 Controller Pak and Dreamcast VMU images."""
 
 from __future__ import annotations
 
 import random
+import struct
+from array import array
+from datetime import datetime
 
 from .const import PAK_SIZE
+from .models import VmuSave
+
+VMU_BLOCK = 512
+# Blocks 240-255 hold the directory (241-253), FAT (254) and root (255) of a
+# standard VMU, so the save list needs only the last 8 KiB of the image.
+VMU_TAIL = 16 * VMU_BLOCK
+_TAIL_FIRST = 256 - VMU_TAIL // VMU_BLOCK
+_FAT_FREE = 0xFFFC
+
+
+def vmu_swap(data: bytes) -> bytes:
+    """Convert between the adapter's VMU buffer and a standard VMU image.
+
+    BlueRetro stores the VMU as Maple bus words: every 32-bit word is
+    byte-reversed relative to the standard ``.bin`` used by emulators and the
+    web config (``dc_vmu.js``). The swap is its own inverse.
+    """
+    words = array("I", data)
+    assert words.itemsize == 4
+    words.byteswap()
+    return words.tobytes()
+
+
+def _bcd_time(raw: bytes) -> datetime | None:
+    if any(b >> 4 > 9 or b & 0x0F > 9 for b in raw[:7]):
+        return None
+    try:
+        century, year, month, day, hour, minute, second = (
+            (b >> 4) * 10 + (b & 0x0F) for b in raw[:7]
+        )
+        return datetime(century * 100 + year, month, day, hour, minute, second)
+    except ValueError:
+        return None
+
+
+def parse_vmu_directory(tail: bytes) -> tuple[list[VmuSave], int] | None:
+    """Parse ``(saves, free_blocks)`` from the last 8 KiB of a standard VMU image.
+
+    Returns ``None`` when the root block is missing (unformatted card) or the
+    directory/FAT live outside the tail (non-standard layout).
+    """
+    if len(tail) != VMU_TAIL:
+        return None
+    root = tail[-VMU_BLOCK:]
+    if root[:16] != b"\x55" * 16:
+        return None
+    fat_loc, _, dir_loc, dir_size, _, user_blocks = struct.unpack_from("<6H", root, 0x46)
+    first_dir = dir_loc - dir_size + 1
+    if not (_TAIL_FIRST <= first_dir <= dir_loc < 256 and _TAIL_FIRST <= fat_loc < 256):
+        return None
+
+    def block(n: int) -> bytes:
+        start = (n - _TAIL_FIRST) * VMU_BLOCK
+        return tail[start : start + VMU_BLOCK]
+
+    fat = struct.unpack("<256H", block(fat_loc))
+    free = sum(1 for n in range(min(user_blocks, 256)) if fat[n] == _FAT_FREE)
+    saves = []
+    for n in range(dir_loc, first_dir - 1, -1):
+        data = block(n)
+        for off in range(0, VMU_BLOCK, 32):
+            entry = data[off : off + 32]
+            if entry[0] not in (0x33, 0xCC):
+                continue
+            saves.append(
+                VmuSave(
+                    name=entry[4:16].decode("ascii", "replace").rstrip("\x00 "),
+                    kind="game" if entry[0] == 0xCC else "data",
+                    blocks=struct.unpack_from("<H", entry, 0x18)[0],
+                    saved=_bcd_time(entry[0x10:0x17]),
+                )
+            )
+    return saves, free
 
 
 def make_formatted_pak(rng: random.Random | None = None) -> bytes:

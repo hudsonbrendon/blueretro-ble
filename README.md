@@ -27,8 +27,12 @@ but works standalone in any async Python project (or straight from the command l
 - ⚙️ **Read & write config** — system, multitap, pairing mode and memory-card bank
   (global config), plus per-output device mode and accessory.
 - 🔁 **Commands** — reboot, deep sleep, and factory reset.
+- 💾 **Memory cards** — back up / restore the Dreamcast VMU (standard `.bin`,
+  same as the web config and emulators) and N64 Controller Pak banks, at any
+  MTU, resuming after link drops. Dreamcast updates also list the VMU saves
+  and free blocks.
 - 🔍 **Discovery helper** — `discover()` finds nearby BlueRetro adapters.
-- 🖥️ **CLI** — `blueretro scan / info / reboot / sleep` for quick testing.
+- 🖥️ **CLI** — `blueretro scan / info / reboot / sleep / vmu-backup / pak-backup` for quick testing.
 - 🏷️ **Bundled game database** — resolves a Game ID to a human-readable name.
 
 ## Requirements
@@ -50,6 +54,8 @@ blueretro scan                          # find nearby adapters
 blueretro info AA:BB:CC:DD:EE:FF        # connect and print the full state
 blueretro reboot AA:BB:CC:DD:EE:FF      # reboot the adapter
 blueretro sleep AA:BB:CC:DD:EE:FF       # put the adapter into deep sleep
+blueretro vmu-backup AA:BB:CC:DD:EE:FF vmu.bin      # save the Dreamcast VMU
+blueretro pak-backup AA:BB:CC:DD:EE:FF 1 pak.mpk    # save N64 Controller Pak bank 1
 ```
 
 ## Library usage
@@ -92,8 +98,8 @@ commands.
 
 - The adapter only accepts connections while **idle** — during gameplay
   `async_update` returns an unavailable state.
-- Dreamcast VMU (memory card) transfer needs a large BLE MTU; over stacks stuck
-  at MTU 23 it is unreliable — use the official web config for VMU backup/restore.
+- Memory-card transfers are slow (a full VMU took ~60 s from macOS); a small
+  MTU makes them slower still, but no longer breaks them.
 
 ## Contributing
 

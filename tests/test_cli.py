@@ -22,3 +22,12 @@ def test_parser_reboot_and_sleep():
 def test_parser_requires_command():
     with pytest.raises(SystemExit):
         build_parser().parse_args([])
+
+
+def test_parser_backups():
+    args = build_parser().parse_args(["vmu-backup", "X", "vmu.bin"])
+    assert (args.command, args.file) == ("vmu-backup", "vmu.bin")
+    args = build_parser().parse_args(["pak-backup", "X", "2", "pak.mpk"])
+    assert (args.bank, args.file) == (2, "pak.mpk")
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["pak-backup", "X", "5", "pak.mpk"])

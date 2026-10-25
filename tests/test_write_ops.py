@@ -2,30 +2,51 @@ import struct
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from bleak.exc import BleakError
 
-from blueretro_ble import const
+from blueretro_ble import const, vmu_swap
 from blueretro_ble.device import BlueRetroDevice
 
 
 class MemClient:
-    """Emulates the firmware's flat memory-card buffer + auto-advancing cursor."""
+    """Emulates the firmware's flat memory-card buffer + auto-advancing cursor.
 
-    def __init__(self, size=const.VMU_SIZE, mtu=247):
+    Mirrors att_cfg.c: a read returns min(bytes left in the 4 KiB block,
+    (mtu - 2) & ~3); a data write longer than mtu - 3 would be a long write.
+    ``drop_every`` raises a BleakError on every Nth data op to simulate an
+    unstable link (the buffer and cursor persist across reconnects).
+    """
+
+    def __init__(self, size=const.VMU_SIZE, mtu=247, drop_every=0):
         self.buf = bytearray(size)
         self.cursor = 0
         self.mtu_size = mtu
         self.disconnect = AsyncMock()
         self.max_write_chunk = 0
         self.crossed_block = False
+        self.long_write = False
         self.ctrl_writes = []
+        self.cmd_reads = 0
+        self.drop_every = drop_every
+        self.ops = 0
+
+    def _maybe_drop(self):
+        self.ops += 1
+        if self.drop_every and self.ops % self.drop_every == 0:
+            self.cursor += 7  # firmware may advance before the link dies
+            raise BleakError("link lost")
 
     async def write_gatt_char(self, uuid, data, response=True):
         data = bytes(data)
+        if uuid == const.CHAR_CMD:
+            return
         if uuid == const.CHAR_FILE_CTRL:
             self.cursor = struct.unpack("<I", data)[0]
             self.ctrl_writes.append(self.cursor)
         elif uuid == const.CHAR_FILE_DATA:
+            self._maybe_drop()
             self.max_write_chunk = max(self.max_write_chunk, len(data))
+            self.long_write |= len(data) > self.mtu_size - 3
             start, end = self.cursor, self.cursor + len(data)
             if len(data) and start // const.MC_BLOCK != (end - 1) // const.MC_BLOCK:
                 self.crossed_block = True
@@ -35,8 +56,13 @@ class MemClient:
             raise AssertionError(f"unexpected write {uuid}")
 
     async def read_gatt_char(self, uuid):
+        if uuid == const.CHAR_CMD:
+            self.cmd_reads += 1
+            return b"\x02"
         if uuid == const.CHAR_FILE_DATA:
-            n = min(244, len(self.buf) - self.cursor)
+            self._maybe_drop()
+            block_left = const.MC_BLOCK - self.cursor % const.MC_BLOCK
+            n = min(block_left, (self.mtu_size - 2) & ~3)
             chunk = bytes(self.buf[self.cursor : self.cursor + n])
             self.cursor += n
             return chunk
@@ -62,12 +88,47 @@ async def test_write_vmu_roundtrip_block_aligned(ble):
     client = MemClient()
     with _patch(client):
         await BlueRetroDevice().async_write_vmu(ble, data)
-    assert client.buf == data
+    assert client.buf == vmu_swap(data)  # adapter keeps Maple word order
     assert client.max_write_chunk <= const.FILE_CHUNK
     assert client.crossed_block is False
+    assert client.long_write is False
     # cursor reset to 0 at start and end
     assert client.ctrl_writes[0] == 0 and client.ctrl_writes[-1] == 0
     client.disconnect.assert_awaited_once()
+    # fast connection parameters requested before the bulk transfer
+    assert client.cmd_reads == 1
+
+
+@pytest.mark.parametrize("mtu", [23, 185, 247, 517])
+async def test_vmu_roundtrip_any_mtu_without_long_writes(ble, mtu):
+    data = bytes((i * 13) & 0xFF for i in range(const.VMU_SIZE))
+    client = MemClient(mtu=mtu)
+    with _patch(client):
+        await BlueRetroDevice().async_write_vmu(ble, data)
+        got = await BlueRetroDevice().async_read_vmu(ble)
+    assert client.buf == vmu_swap(data) and got == data
+    assert client.long_write is False and client.crossed_block is False
+
+
+async def test_transfer_resumes_after_link_drops(ble):
+    data = bytes((i * 31) & 0xFF for i in range(const.PAK_SIZE))
+    client = MemClient(drop_every=50)
+    progress = []
+    with _patch(client):
+        await BlueRetroDevice().async_write_pak(ble, 3, data, progress.append)
+        got = await BlueRetroDevice().async_read_pak(ble, 3)
+    base = 3 * const.PAK_SIZE
+    assert client.buf[base : base + const.PAK_SIZE] == data
+    assert got == data
+    assert client.disconnect.await_count > 2  # reconnected after drops
+    assert progress[-1] == 100
+
+
+async def test_transfer_gives_up_without_progress(ble):
+    client = MemClient(drop_every=1)
+    with _patch(client), pytest.raises(RuntimeError, match="after 0 bytes"):
+        await BlueRetroDevice().async_read_vmu(ble)
+    assert client.disconnect.await_count == const.TRANSFER_RETRIES + 1
 
 
 async def test_write_vmu_wrong_size_rejected(ble):

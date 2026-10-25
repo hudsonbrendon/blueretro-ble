@@ -13,7 +13,7 @@ from bleak_retry_connector import establish_connection
 
 from . import const
 from .gameid import lookup_game_name
-from .memorycard import make_formatted_pak
+from .memorycard import VMU_TAIL, make_formatted_pak, parse_vmu_directory, vmu_swap
 from .models import BlueRetroState, InputMapping
 from .presets import Preset
 from .protocol import (
@@ -78,6 +78,11 @@ class BlueRetroDevice:
             for port in range(output_ports):
                 ports[port] = await self._read_output(client, port)
             controller_mode, accessory = ports[0]
+            vmu = None
+            if "dreamcast" in (fw or "").lower() and any(
+                acc in ("Memory", "Both") for _, acc in ports.values()
+            ):
+                vmu = await self._read_vmu_directory(client)
         except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
             _LOGGER.debug("BlueRetro read failed: %s", err)
             self.last_state = BlueRetroState(available=False)
@@ -102,9 +107,33 @@ class BlueRetroDevice:
             controller_mode=controller_mode,
             accessory=accessory,
             ports=ports,
+            vmu_saves=vmu[0] if vmu else None,
+            vmu_free_blocks=vmu[1] if vmu else None,
         )
         self.last_state = state
         return state
+
+    async def _read_vmu_directory(self, client: BleakClient):
+        """Best-effort ``(saves, free_blocks)`` from the VMU's last 8 KiB."""
+        try:
+            await client.write_gatt_char(
+                const.CHAR_FILE_CTRL,
+                struct.pack("<I", const.VMU_SIZE - VMU_TAIL),
+                response=True,
+            )
+            tail = bytearray()
+            while len(tail) < VMU_TAIL:
+                chunk = await client.read_gatt_char(const.CHAR_FILE_DATA)
+                if not chunk:
+                    return None
+                tail += chunk
+            await client.write_gatt_char(
+                const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
+            )
+            return parse_vmu_directory(vmu_swap(bytes(tail[:VMU_TAIL])))
+        except (BleakError, TimeoutError, OSError) as err:
+            _LOGGER.debug("BlueRetro VMU directory read failed: %s", err)
+            return None
 
     async def _read_global_config(
         self, client: BleakClient
@@ -300,83 +329,115 @@ class BlueRetroDevice:
             await client.disconnect()
 
     # -- File transport (memory card buffer: flat 128 KiB of 32 x 4 KiB blocks) --
+    #
+    # Firmware facts this relies on (att_cfg.c, confirmed in the v25.04 binary):
+    # - one global cursor, set by writing CHAR_FILE_CTRL and auto-advanced by
+    #   every CHAR_FILE_DATA read/write, so resuming = rewriting the cursor;
+    # - a read returns min(bytes left in the 4 KiB block, (mtu - 2) & ~3);
+    # - writes longer than one ATT packet become prepare/execute long writes,
+    #   and every execute rewrites the config file to flash, so data writes are
+    #   sized to fit a single Write Request instead;
+    # - the fast connection interval (7.5-15 ms) is only requested after the
+    #   first CHAR_CMD read.
 
-    async def _read_file(
-        self, client: BleakClient, offset: int, size: int
-    ) -> bytes:
-        """Read ``size`` bytes from the memory-card buffer at ``offset``."""
-        mtu = getattr(client, "mtu_size", None)
-        await client.write_gatt_char(
-            const.CHAR_FILE_CTRL, struct.pack("<I", offset), response=True
-        )
-        data = bytearray()
+    async def _fast_link(self, client: BleakClient) -> None:
+        """Trigger the firmware's fast connection-parameter update. Best-effort."""
         try:
-            while len(data) < size:
-                chunk = await client.read_gatt_char(const.CHAR_FILE_DATA)
-                if not chunk:
-                    break
-                data += chunk
+            await self._command(client, const.CMD_GET_ABI)
         except (BleakError, TimeoutError, OSError) as err:
-            raise RuntimeError(
-                f"file read failed after {len(data)} bytes (mtu={mtu}): {err}"
-            ) from err
-        # Reset the file cursor for the next transfer.
-        await client.write_gatt_char(
-            const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
-        )
-        return bytes(data[:size])
+            _LOGGER.debug("BlueRetro fast-link request failed: %s", err)
 
-    async def _write_file(
+    async def _transfer(
         self,
-        client: BleakClient,
+        ble_device: BLEDevice,
         offset: int,
-        data: bytes,
+        size: int,
+        data: bytes | None = None,
         progress: Callable[[int], None] | None = None,
-    ) -> None:
-        """Write ``data`` to the memory-card buffer starting at ``offset``.
+    ) -> bytes:
+        """Read (``data is None``) or write ``size`` bytes of the memory-card buffer.
 
-        Chunks are MTU-capped and block-aligned: a write never crosses a 4 KiB
-        block boundary (firmware requirement). The firmware auto-advances its
-        own cursor, so the start offset is written once up front.
+        A dropped link is reconnected and the transfer resumes at the last
+        acknowledged byte, up to ``const.TRANSFER_RETRIES`` consecutive failures
+        without progress. Raises ``RuntimeError`` when it gives up.
         """
-        mtu = getattr(client, "mtu_size", None)
-        await client.write_gatt_char(
-            const.CHAR_FILE_CTRL, struct.pack("<I", offset), response=True
-        )
+        buf = bytearray()
         pos = 0
-        total = len(data)
-        try:
-            while pos < total:
-                # Bytes left until the next 4 KiB boundary, capped at the MTU.
-                next_block = (pos // const.MC_BLOCK + 1) * const.MC_BLOCK
-                size = min(next_block - pos, const.FILE_CHUNK, total - pos)
+        failures = 0
+        fail_pos = -1
+        chunk_len = 0  # largest read chunk seen ~ firmware MTU - 2
+        while True:
+            client: BleakClient | None = None
+            try:
+                client = await self._connect(ble_device)
+                await self._fast_link(client)
+                if data is not None and not chunk_len:
+                    # Probe one read to learn the firmware's ATT MTU.
+                    await client.write_gatt_char(
+                        const.CHAR_FILE_CTRL,
+                        struct.pack("<I", offset - offset % const.MC_BLOCK),
+                        response=True,
+                    )
+                    chunk_len = len(await client.read_gatt_char(const.CHAR_FILE_DATA))
                 await client.write_gatt_char(
-                    const.CHAR_FILE_DATA, data[pos : pos + size], response=True
+                    const.CHAR_FILE_CTRL, struct.pack("<I", offset + pos), response=True
                 )
-                pos += size
-                if progress is not None:
-                    progress(round(pos / total * 100))
-        except (BleakError, TimeoutError, OSError) as err:
-            raise RuntimeError(
-                f"file write failed after {pos} bytes (mtu={mtu}): {err}"
-            ) from err
-        # Reset the file cursor for the next transfer.
-        await client.write_gatt_char(
-            const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
-        )
+                while pos < size:
+                    if data is None:
+                        chunk = await client.read_gatt_char(const.CHAR_FILE_DATA)
+                        if not chunk:
+                            raise RuntimeError(f"empty read at byte {pos}")
+                        chunk_len = max(chunk_len, len(chunk))
+                        buf += chunk
+                        pos = min(len(buf), size)
+                    else:
+                        here = offset + pos
+                        block_left = const.MC_BLOCK - here % const.MC_BLOCK
+                        # chunk_len - 4 always fits in one Write Request (mtu - 3).
+                        n = min(block_left, const.FILE_CHUNK, max(chunk_len - 4, 16), size - pos)
+                        await client.write_gatt_char(
+                            const.CHAR_FILE_DATA, data[pos : pos + n], response=True
+                        )
+                        pos += n
+                    if progress is not None:
+                        progress(round(pos / size * 100))
+                await client.write_gatt_char(
+                    const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
+                )
+                return bytes(buf[:size])
+            except (BleakError, TimeoutError, OSError) as err:
+                if pos != fail_pos:
+                    failures, fail_pos = 0, pos
+                failures += 1
+                if failures > const.TRANSFER_RETRIES:
+                    raise RuntimeError(
+                        f"file transfer failed after {pos} bytes "
+                        f"(chunk={chunk_len}): {err}"
+                    ) from err
+                _LOGGER.debug(
+                    "BlueRetro transfer dropped at %d/%d (%s); resuming", pos, size, err
+                )
+                del buf[pos:]
+            finally:
+                if client is not None:
+                    await client.disconnect()
 
-    async def async_read_vmu(self, ble_device: BLEDevice) -> bytes:
+    async def async_read_vmu(
+        self,
+        ble_device: BLEDevice,
+        progress: Callable[[int], None] | None = None,
+    ) -> bytes:
         """Download the emulated Dreamcast VMU image (128 KiB).
 
+        Returned in standard VMU byte order (same ``vmu.bin`` as the web config
+        and emulators), converted from the adapter's Maple word order.
+
         Read-only: dumps the adapter's current VMU. The adapter must be idle.
-        Raises ``RuntimeError`` if the adapter rejects the chunked read (e.g.
-        when the negotiated MTU is too small).
+        Works at any MTU (a small one is only slower) and resumes after link
+        drops; raises ``RuntimeError`` when the transfer gives up.
         """
-        client = await self._connect(ble_device)
-        try:
-            return await self._read_file(client, 0, const.VMU_SIZE)
-        finally:
-            await client.disconnect()
+        raw = await self._transfer(ble_device, 0, const.VMU_SIZE, progress=progress)
+        return vmu_swap(raw)
 
     async def async_write_vmu(
         self,
@@ -384,21 +445,17 @@ class BlueRetroDevice:
         data: bytes,
         progress: Callable[[int], None] | None = None,
     ) -> None:
-        """Upload a Dreamcast VMU image (exactly 128 KiB).
+        """Upload a Dreamcast VMU image (exactly 128 KiB, standard byte order).
 
-        Overwrites the emulated VMU. Destructive. Requires a large negotiated
-        MTU; the transfer fails (``RuntimeError``) otherwise. Power the console
+        Overwrites the emulated VMU. Destructive. Resumes after link drops;
+        raises ``RuntimeError`` when the transfer gives up. Power the console
         off first — the buffer is read live by the console.
         """
         if len(data) != const.VMU_SIZE:
             raise ValueError(
                 f"VMU image must be exactly {const.VMU_SIZE} bytes"
             )
-        client = await self._connect(ble_device)
-        try:
-            await self._write_file(client, 0, data, progress)
-        finally:
-            await client.disconnect()
+        await self._transfer(ble_device, 0, const.VMU_SIZE, vmu_swap(data), progress)
 
     @staticmethod
     def _pak_offset(bank: int) -> int:
@@ -406,14 +463,15 @@ class BlueRetroDevice:
             raise ValueError(f"pak bank must be 0..{const.PAK_BANKS - 1}")
         return bank * const.PAK_SIZE
 
-    async def async_read_pak(self, ble_device: BLEDevice, bank: int) -> bytes:
+    async def async_read_pak(
+        self,
+        ble_device: BLEDevice,
+        bank: int,
+        progress: Callable[[int], None] | None = None,
+    ) -> bytes:
         """Download an N64 Controller Pak bank (32 KiB, bank 0..3)."""
         offset = self._pak_offset(bank)
-        client = await self._connect(ble_device)
-        try:
-            return await self._read_file(client, offset, const.PAK_SIZE)
-        finally:
-            await client.disconnect()
+        return await self._transfer(ble_device, offset, const.PAK_SIZE, progress=progress)
 
     async def async_write_pak(
         self,
@@ -428,21 +486,12 @@ class BlueRetroDevice:
             raise ValueError(
                 f"pak image must be exactly {const.PAK_SIZE} bytes"
             )
-        client = await self._connect(ble_device)
-        try:
-            await self._write_file(client, offset, data, progress)
-        finally:
-            await client.disconnect()
+        await self._transfer(ble_device, offset, const.PAK_SIZE, data, progress)
 
     async def async_format_pak(self, ble_device: BLEDevice, bank: int) -> None:
         """Format an N64 Controller Pak bank (writes a blank formatted image)."""
         offset = self._pak_offset(bank)
-        data = make_formatted_pak()
-        client = await self._connect(ble_device)
-        try:
-            await self._write_file(client, offset, data)
-        finally:
-            await client.disconnect()
+        await self._transfer(ble_device, offset, const.PAK_SIZE, make_formatted_pak())
 
     # -- Config files (flash FAT filesystem, via CHAR_CMD) --
 

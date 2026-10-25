@@ -17,6 +17,7 @@ CHAR_FILE_DATA = "56830f56-5180-fab0-314b-2fa176799a0b"  # chunked file data (VM
 CHAR_BDADDR = "56830f56-5180-fab0-314b-2fa176799a0c"
 
 # Command bytes written to CHAR_CMD, response read back from CHAR_CMD
+CMD_GET_ABI = 0x01
 CMD_GET_GAMEID = 0x04
 CMD_GET_CFG_SRC = 0x05
 CMD_GET_FILE = 0x06
@@ -80,6 +81,10 @@ MAX_OUTPUT = 12
 VMU_SIZE = 128 * 1024
 FILE_CHUNK = 244  # MTU-sized write chunk
 MC_BLOCK = 4096  # memory-card flash block; file writes never cross this boundary
+# Reconnect-and-resume attempts per memory-card transfer without progress.
+# The firmware keeps one global cursor that the client sets explicitly
+# (CHAR_FILE_CTRL), so a dropped link resumes at the last acknowledged byte.
+TRANSFER_RETRIES = 5
 
 # N64 Controller Pak: 4 banks of 32 KiB in the same flat memory-card buffer.
 PAK_SIZE = 32 * 1024

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import time
 from dataclasses import asdict
 
 from bleak import BleakScanner
@@ -31,6 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_sleep = sub.add_parser("sleep", help="put the adapter into deep sleep")
     p_sleep.add_argument("address")
+
+    p_vmu = sub.add_parser("vmu-backup", help="save the Dreamcast VMU image to a file")
+    p_vmu.add_argument("address")
+    p_vmu.add_argument("file")
+
+    p_pak = sub.add_parser("pak-backup", help="save an N64 Controller Pak bank to a file")
+    p_pak.add_argument("address")
+    p_pak.add_argument("bank", type=int, choices=range(1, 5), metavar="bank (1-4)")
+    p_pak.add_argument("file")
 
     return parser
 
@@ -64,6 +74,18 @@ async def _run(args: argparse.Namespace) -> None:
     elif args.command == "sleep":
         await br.async_deep_sleep(device)
         print("deep-sleep command sent")
+    elif args.command in ("vmu-backup", "pak-backup"):
+        def show(pct: int) -> None:
+            print(f"\r{pct:3d}%", end="", flush=True)
+
+        start = time.monotonic()
+        if args.command == "vmu-backup":
+            data = await br.async_read_vmu(device, show)
+        else:
+            data = await br.async_read_pak(device, args.bank - 1, show)
+        with open(args.file, "wb") as f:
+            f.write(data)
+        print(f"\nsaved {len(data)} bytes to {args.file} in {time.monotonic() - start:.1f}s")
 
 
 def main(argv: list[str] | None = None) -> None:
