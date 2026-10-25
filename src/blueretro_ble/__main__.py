@@ -75,8 +75,12 @@ async def _run(args: argparse.Namespace) -> None:
         await br.async_deep_sleep(device)
         print("deep-sleep command sent")
     elif args.command in ("vmu-backup", "pak-backup"):
+        shown = [-1]
+
         def show(pct: int) -> None:
-            print(f"\r{pct:3d}%", end="", flush=True)
+            if pct != shown[0]:
+                shown[0] = pct
+                print(f"\r{pct:3d}%", end="", flush=True)
 
         start = time.monotonic()
         if args.command == "vmu-backup":
