@@ -15,9 +15,7 @@ def fake_ble_device():
 
 async def test_async_reboot_writes_reset_command(fake_ble_device):
     client = AsyncMock()
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         await BlueRetroDevice().async_reboot(fake_ble_device)
 
     client.write_gatt_char.assert_awaited_once_with(
@@ -28,9 +26,7 @@ async def test_async_reboot_writes_reset_command(fake_ble_device):
 
 async def test_async_deep_sleep_writes_sleep_command(fake_ble_device):
     client = AsyncMock()
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         await BlueRetroDevice().async_deep_sleep(fake_ble_device)
 
     client.write_gatt_char.assert_awaited_once_with(
@@ -41,9 +37,7 @@ async def test_async_deep_sleep_writes_sleep_command(fake_ble_device):
 
 async def test_async_factory_reset_writes_factory_command(fake_ble_device):
     client = AsyncMock()
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         await BlueRetroDevice().async_factory_reset(fake_ble_device)
 
     client.write_gatt_char.assert_awaited_once_with(
@@ -56,9 +50,7 @@ async def test_async_set_global_config_writes_and_reboots(fake_ble_device):
     client = AsyncMock()
     # Current global config: system=Auto(0), multitap=None(0), inquiry=Auto(0), bank0
     client.read_gatt_char = AsyncMock(return_value=bytes([0, 0, 0, 0]))
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         await BlueRetroDevice().async_set_global_config(
             fake_ble_device, system="PS2", inquiry_mode="Manual", memory_card_bank=3
         )
@@ -76,13 +68,11 @@ async def test_async_set_global_config_writes_and_reboots(fake_ble_device):
 
 async def test_async_set_global_config_rejects_unknown_value(fake_ble_device):
     client = AsyncMock()
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
+    with (
+        patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)),
+        pytest.raises(ValueError),
     ):
-        with pytest.raises(ValueError):
-            await BlueRetroDevice().async_set_global_config(
-                fake_ble_device, system="NotAConsole"
-            )
+        await BlueRetroDevice().async_set_global_config(fake_ble_device, system="NotAConsole")
 
 
 @pytest.mark.parametrize(
@@ -91,13 +81,9 @@ async def test_async_set_global_config_rejects_unknown_value(fake_ble_device):
 )
 async def test_async_set_config_source(fake_ble_device, source, cmd):
     client = AsyncMock()
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         await BlueRetroDevice().async_set_config_source(fake_ble_device, source)
-    client.write_gatt_char.assert_awaited_once_with(
-        const.CHAR_CMD, bytes([cmd]), response=True
-    )
+    client.write_gatt_char.assert_awaited_once_with(const.CHAR_CMD, bytes([cmd]), response=True)
 
 
 async def test_async_set_config_source_rejects_unknown(fake_ble_device):

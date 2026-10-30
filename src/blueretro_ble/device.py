@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 import struct
-from collections.abc import Callable
 
 from bleak import BleakClient
 from bleak.backends.device import BLEDevice
@@ -14,7 +14,7 @@ from bleak_retry_connector import establish_connection
 from . import const
 from .gameid import lookup_game_name
 from .memorycard import VMU_TAIL, make_formatted_pak, parse_vmu_directory, vmu_swap
-from .models import BlueRetroState, InputMapping
+from .models import BlueRetroState, InputMapping, VmuSave
 from .presets import Preset
 from .protocol import (
     decode_abi,
@@ -37,13 +37,9 @@ class BlueRetroDevice:
         self.last_state = BlueRetroState()
 
     async def _connect(self, ble_device: BLEDevice) -> BleakClient:
-        return await establish_connection(
-            BleakClient, ble_device, ble_device.address
-        )
+        return await establish_connection(BleakClient, ble_device, ble_device.address)
 
-    async def async_update(
-        self, ble_device: BLEDevice, output_ports: int = 1
-    ) -> BlueRetroState:
+    async def async_update(self, ble_device: BLEDevice, output_ports: int = 1) -> BlueRetroState:
         """Connect, read all fields, disconnect. Never raises.
 
         ``output_ports`` controls how many output ports' configs are read in the
@@ -60,18 +56,14 @@ class BlueRetroDevice:
             return self.last_state
 
         try:
-            abi = decode_abi(await client.read_gatt_char(const.CHAR_ABI))
-            fw = decode_string(await client.read_gatt_char(const.CHAR_APP))
-            bdaddr = decode_bdaddr(await client.read_gatt_char(const.CHAR_BDADDR))
-            game_id = decode_string(
-                await self._command(client, const.CMD_GET_GAMEID)
-            )
-            cfg_src = decode_abi(
-                await self._command(client, const.CMD_GET_CFG_SRC)
-            )
+            abi = decode_abi(bytes(await client.read_gatt_char(const.CHAR_ABI)))
+            fw = decode_string(bytes(await client.read_gatt_char(const.CHAR_APP)))
+            bdaddr = decode_bdaddr(bytes(await client.read_gatt_char(const.CHAR_BDADDR)))
+            game_id = decode_string(await self._command(client, const.CMD_GET_GAMEID))
+            cfg_src = decode_abi(await self._command(client, const.CMD_GET_CFG_SRC))
             # Best-effort extras: never fail the core read if firmware lacks them.
-            system, multitap, inquiry_mode, memory_card_bank = (
-                await self._read_global_config(client)
+            system, multitap, inquiry_mode, memory_card_bank = await self._read_global_config(
+                client
             )
             fw_name = await self._read_fw_name(client)
             ports: dict[int, tuple[str | None, str | None]] = {}
@@ -113,7 +105,7 @@ class BlueRetroDevice:
         self.last_state = state
         return state
 
-    async def _read_vmu_directory(self, client: BleakClient):
+    async def _read_vmu_directory(self, client: BleakClient) -> tuple[list[VmuSave], int] | None:
         """Best-effort ``(saves, free_blocks)`` from the VMU's last 8 KiB."""
         try:
             await client.write_gatt_char(
@@ -127,9 +119,7 @@ class BlueRetroDevice:
                 if not chunk:
                     return None
                 tail += chunk
-            await client.write_gatt_char(
-                const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True
-            )
+            await client.write_gatt_char(const.CHAR_FILE_CTRL, struct.pack("<I", 0), response=True)
             return parse_vmu_directory(vmu_swap(bytes(tail[:VMU_TAIL])))
         except (BleakError, TimeoutError, OSError) as err:
             _LOGGER.debug("BlueRetro VMU directory read failed: %s", err)
@@ -139,20 +129,18 @@ class BlueRetroDevice:
         self, client: BleakClient
     ) -> tuple[str | None, str | None, str | None, int | None]:
         try:
-            raw = await client.read_gatt_char(const.CHAR_GLOBAL_CFG)
+            raw = bytes(await client.read_gatt_char(const.CHAR_GLOBAL_CFG))
             return decode_global_config(raw)
         except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
             _LOGGER.debug("BlueRetro global config read failed: %s", err)
             return (None, None, None, None)
 
-    async def _read_output(
-        self, client: BleakClient, port: int
-    ) -> tuple[str | None, str | None]:
+    async def _read_output(self, client: BleakClient, port: int) -> tuple[str | None, str | None]:
         try:
             await client.write_gatt_char(
                 const.CHAR_OUTPUT_CTRL, struct.pack("<H", port), response=True
             )
-            raw = await client.read_gatt_char(const.CHAR_OUTPUT_DATA)
+            raw = bytes(await client.read_gatt_char(const.CHAR_OUTPUT_DATA))
             return decode_output_config(raw)
         except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
             _LOGGER.debug("BlueRetro output config read failed: %s", err)
@@ -160,9 +148,7 @@ class BlueRetroDevice:
 
     async def _read_fw_name(self, client: BleakClient) -> str | None:
         try:
-            return decode_string(
-                await self._command(client, const.CMD_GET_FW_NAME)
-            )
+            return decode_string(await self._command(client, const.CMD_GET_FW_NAME))
         except (BleakError, TimeoutError, OSError, Exception) as err:  # noqa: BLE001
             _LOGGER.debug("BlueRetro firmware name read failed: %s", err)
             return None
@@ -170,7 +156,7 @@ class BlueRetroDevice:
     async def _command(self, client: BleakClient, command: int) -> bytes:
         """Write a command byte to CHAR_CMD then read the response."""
         await client.write_gatt_char(const.CHAR_CMD, bytes([command]), response=True)
-        return await client.read_gatt_char(const.CHAR_CMD)
+        return bytes(await client.read_gatt_char(const.CHAR_CMD))
 
     async def async_reboot(self, ble_device: BLEDevice) -> None:
         """Reboot the adapter."""
@@ -180,9 +166,7 @@ class BlueRetroDevice:
         """Put the adapter into deep sleep."""
         await self._send_command(ble_device, const.CMD_SYS_DEEP_SLEEP)
 
-    async def async_set_config_source(
-        self, ble_device: BLEDevice, source: str
-    ) -> None:
+    async def async_set_config_source(self, ble_device: BLEDevice, source: str) -> None:
         """Switch the active config source (``const.CFG_SRC`` label).
 
         ``"Game ID"`` saves the current config as the running game's file;
@@ -191,11 +175,7 @@ class BlueRetroDevice:
         """
         if source not in const.CFG_SRC:
             raise ValueError(f"unknown config source {source!r}")
-        cmd = (
-            const.CMD_SET_GAMEID_CFG
-            if source == "Game ID"
-            else const.CMD_SET_DEFAULT_CFG
-        )
+        cmd = const.CMD_SET_GAMEID_CFG if source == "Game ID" else const.CMD_SET_DEFAULT_CFG
         await self._send_command(ble_device, cmd)
 
     async def async_factory_reset(self, ble_device: BLEDevice) -> None:
@@ -235,18 +215,12 @@ class BlueRetroDevice:
 
         client = await self._connect(ble_device)
         try:
-            current = bytearray(
-                await client.read_gatt_char(const.CHAR_GLOBAL_CFG)
-            )
+            current = bytearray(await client.read_gatt_char(const.CHAR_GLOBAL_CFG))
             for idx, value in overrides.items():
                 if idx >= len(current):
-                    raise ValueError(
-                        "firmware global config is too short for this field"
-                    )
+                    raise ValueError("firmware global config is too short for this field")
                 current[idx] = value
-            await client.write_gatt_char(
-                const.CHAR_GLOBAL_CFG, bytes(current), response=True
-            )
+            await client.write_gatt_char(const.CHAR_GLOBAL_CFG, bytes(current), response=True)
             if reboot:
                 await client.write_gatt_char(
                     const.CHAR_CMD, bytes([const.CMD_SYS_RESET]), response=True
@@ -309,9 +283,7 @@ class BlueRetroDevice:
             await client.write_gatt_char(
                 const.CHAR_OUTPUT_CTRL, struct.pack("<H", port), response=True
             )
-            current = bytearray(
-                await client.read_gatt_char(const.CHAR_OUTPUT_DATA)
-            )
+            current = bytearray(await client.read_gatt_char(const.CHAR_OUTPUT_DATA))
             while len(current) < 2:
                 current.append(0)
             if dev_idx is not None:
@@ -322,9 +294,7 @@ class BlueRetroDevice:
             await client.write_gatt_char(
                 const.CHAR_OUTPUT_CTRL, struct.pack("<H", port), response=True
             )
-            await client.write_gatt_char(
-                const.CHAR_OUTPUT_DATA, bytes(current[:2]), response=True
-            )
+            await client.write_gatt_char(const.CHAR_OUTPUT_DATA, bytes(current[:2]), response=True)
         finally:
             await client.disconnect()
 
@@ -411,12 +381,9 @@ class BlueRetroDevice:
                 failures += 1
                 if failures > const.TRANSFER_RETRIES:
                     raise RuntimeError(
-                        f"file transfer failed after {pos} bytes "
-                        f"(chunk={chunk_len}): {err}"
+                        f"file transfer failed after {pos} bytes (chunk={chunk_len}): {err}"
                     ) from err
-                _LOGGER.debug(
-                    "BlueRetro transfer dropped at %d/%d (%s); resuming", pos, size, err
-                )
+                _LOGGER.debug("BlueRetro transfer dropped at %d/%d (%s); resuming", pos, size, err)
                 del buf[pos:]
             finally:
                 if client is not None:
@@ -452,9 +419,7 @@ class BlueRetroDevice:
         off first — the buffer is read live by the console.
         """
         if len(data) != const.VMU_SIZE:
-            raise ValueError(
-                f"VMU image must be exactly {const.VMU_SIZE} bytes"
-            )
+            raise ValueError(f"VMU image must be exactly {const.VMU_SIZE} bytes")
         await self._transfer(ble_device, 0, const.VMU_SIZE, vmu_swap(data), progress)
 
     @staticmethod
@@ -483,9 +448,7 @@ class BlueRetroDevice:
         """Upload an N64 Controller Pak bank (exactly 32 KiB, bank 0..3)."""
         offset = self._pak_offset(bank)
         if len(data) != const.PAK_SIZE:
-            raise ValueError(
-                f"pak image must be exactly {const.PAK_SIZE} bytes"
-            )
+            raise ValueError(f"pak image must be exactly {const.PAK_SIZE} bytes")
         await self._transfer(ble_device, offset, const.PAK_SIZE, data, progress)
 
     async def async_format_pak(self, ble_device: BLEDevice, bank: int) -> None:
@@ -499,12 +462,8 @@ class BlueRetroDevice:
         """List the adapter's stored config files (per-GameID configs)."""
         client = await self._connect(ble_device)
         try:
-            await client.write_gatt_char(
-                const.CHAR_CMD, bytes([const.CMD_OPEN_DIR]), response=True
-            )
-            await client.write_gatt_char(
-                const.CHAR_CMD, bytes([const.CMD_GET_FILE]), response=True
-            )
+            await client.write_gatt_char(const.CHAR_CMD, bytes([const.CMD_OPEN_DIR]), response=True)
+            await client.write_gatt_char(const.CHAR_CMD, bytes([const.CMD_GET_FILE]), response=True)
             files: list[str] = []
             while True:
                 value = await client.read_gatt_char(const.CHAR_CMD)
@@ -518,16 +477,12 @@ class BlueRetroDevice:
         finally:
             await client.disconnect()
 
-    async def async_delete_file(
-        self, ble_device: BLEDevice, name: str
-    ) -> None:
+    async def async_delete_file(self, ble_device: BLEDevice, name: str) -> None:
         """Delete a stored config file by name."""
         payload = bytes([const.CMD_DEL_FILE]) + name.encode("utf-8")
         client = await self._connect(ble_device)
         try:
-            await client.write_gatt_char(
-                const.CHAR_CMD, payload, response=True
-            )
+            await client.write_gatt_char(const.CHAR_CMD, payload, response=True)
         finally:
             await client.disconnect()
 
@@ -645,15 +600,11 @@ class BlueRetroDevice:
 
         ``port`` is added to each mapping's ``dest_id`` (web config ``cfgId``).
         """
-        await self.async_write_input_config(
-            ble_device, cfg_id, preset.mappings(port)
-        )
+        await self.async_write_input_config(ble_device, cfg_id, preset.mappings(port))
 
     async def _send_command(self, ble_device: BLEDevice, command: int) -> None:
         client = await self._connect(ble_device)
         try:
-            await client.write_gatt_char(
-                const.CHAR_CMD, bytes([command]), response=True
-            )
+            await client.write_gatt_char(const.CHAR_CMD, bytes([command]), response=True)
         finally:
             await client.disconnect()

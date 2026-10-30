@@ -1,8 +1,8 @@
 import struct
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from bleak.exc import BleakError
+import pytest
 
 from blueretro_ble import const, vmu_swap
 from blueretro_ble.device import BlueRetroDevice
@@ -48,7 +48,7 @@ class MemClient:
             self.max_write_chunk = max(self.max_write_chunk, len(data))
             self.long_write |= len(data) > self.mtu_size - 3
             start, end = self.cursor, self.cursor + len(data)
-            if len(data) and start // const.MC_BLOCK != (end - 1) // const.MC_BLOCK:
+            if data and start // const.MC_BLOCK != (end - 1) // const.MC_BLOCK:
                 self.crossed_block = True
             self.buf[start:end] = data
             self.cursor = end  # firmware advances its own cursor

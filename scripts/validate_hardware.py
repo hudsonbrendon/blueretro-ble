@@ -73,8 +73,7 @@ async def main():
             raw = await client.read_gatt_char(const.CHAR_GLOBAL_CFG)
             print(f"  CHAR_GLOBAL_CFG (a01) = {bytes(raw).hex(' ')}  (len={len(raw)})")
             print(
-                "  interpretação: byte0=system, byte1=multitap, "
-                "byte2=inquiry, byte3=bank(0-based)"
+                "  interpretação: byte0=system, byte1=multitap, byte2=inquiry, byte3=bank(0-based)"
             )
     except Exception as err:  # noqa: BLE001
         print(f"  (não consegui ler os bytes crus: {err})")

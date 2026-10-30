@@ -112,9 +112,7 @@ async def test_async_update_tolerates_missing_global_config(fake_ble_device):
 async def test_async_update_disconnects_even_on_read_error(fake_ble_device):
     client = FakeClient()
     client.read_gatt_char = AsyncMock(side_effect=Exception("boom"))
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         device = BlueRetroDevice()
         state = await device.async_update(fake_ble_device)
 
@@ -186,9 +184,7 @@ async def test_async_update_clamps_port_count(fake_ble_device):
 
 async def test_async_read_outputs_helper(fake_ble_device):
     client = MultiPortClient()
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         result = await BlueRetroDevice().async_read_outputs(fake_ble_device, ports=2)
 
     assert result == {0: ("GamePad", "Memory"), 1: ("GamePadAlt", "Rumble")}

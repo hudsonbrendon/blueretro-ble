@@ -7,16 +7,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import time
 from dataclasses import asdict
+import time
 
 from bleak import BleakScanner
+from bleak.backends.device import BLEDevice
 
 from .device import BlueRetroDevice
 from .scanner import discover
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the ``blueretro`` argument parser."""
     parser = argparse.ArgumentParser(
         prog="blueretro", description="Talk to a BlueRetro adapter over BLE"
     )
@@ -45,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def _resolve(address: str):
+async def _resolve(address: str) -> BLEDevice:
     device = await BleakScanner.find_device_by_address(address, timeout=10.0)
     if device is None:
         raise SystemExit(f"BlueRetro {address} not found (powered on and idle?)")
@@ -87,12 +89,13 @@ async def _run(args: argparse.Namespace) -> None:
             data = await br.async_read_vmu(device, show)
         else:
             data = await br.async_read_pak(device, args.bank - 1, show)
-        with open(args.file, "wb") as f:
+        with open(args.file, "wb") as f:  # noqa: ASYNC230, PTH123
             f.write(data)
         print(f"\nsaved {len(data)} bytes to {args.file} in {time.monotonic() - start:.1f}s")
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI entry point."""
     args = build_parser().parse_args(argv)
     asyncio.run(_run(args))
 

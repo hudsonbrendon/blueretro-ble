@@ -7,3 +7,5 @@ venv/
 .coverage
 dist/
 build/
+.mypy_cache/
+.ruff_cache/

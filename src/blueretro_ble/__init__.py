@@ -1,5 +1,7 @@
 """blueretro-ble: talk to the BlueRetro retro-console adapter over Bluetooth LE."""
 
+from importlib import metadata
+
 from .const import (
     ACCESSORY_CFG,
     CFG_SRC,
@@ -20,24 +22,23 @@ from .presets import Preset, list_presets, load_preset, preset_from_json
 from .protocol import decode_input_config, encode_input_config
 from .scanner import discover, supports
 
-__version__ = "0.9.0"
-
 __all__ = [
     "ACCESSORY_CFG",
-    "BlueRetroDevice",
-    "BlueRetroState",
     "CFG_SRC",
     "DEVICE_CFG",
     "INQUIRY_MODE",
-    "InputMapping",
     "MULTITAP_CFG",
     "PAK_BANKS",
     "PAK_SIZE",
-    "Preset",
     "SERVICE_UUID",
     "SYSTEM_CFG",
     "VMU_SIZE",
+    "BlueRetroDevice",
+    "BlueRetroState",
+    "InputMapping",
+    "Preset",
     "VmuSave",
+    "__version__",
     "decode_input_config",
     "discover",
     "encode_input_config",
@@ -49,5 +50,9 @@ __all__ = [
     "preset_from_json",
     "supports",
     "vmu_swap",
-    "__version__",
 ]
+
+try:
+    __version__ = metadata.version("blueretro-ble")
+except metadata.PackageNotFoundError:  # pragma: no cover
+    __version__ = "0.0.0"

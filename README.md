@@ -64,6 +64,7 @@ blueretro pak-backup AA:BB:CC:DD:EE:FF 1 pak.mpk    # save N64 Controller Pak ba
 import asyncio
 from blueretro_ble import BlueRetroDevice, discover
 
+
 async def main():
     devices = await discover()
     device = BlueRetroDevice()
@@ -72,6 +73,7 @@ async def main():
 
     # change the emulated accessory on output port 1
     await device.async_set_output_config(devices[0], 0, accessory="Memory")
+
 
 asyncio.run(main())
 ```
