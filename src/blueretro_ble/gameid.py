@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import sqlite3
 from importlib import resources
 from pathlib import Path
+import sqlite3
 
 
 def _bundled_db_path() -> Path:
@@ -24,9 +24,7 @@ def lookup_game_name(game_id: str | None, db_path: Path | None = None) -> str | 
     try:
         uri = f"file:{path}?mode=ro"
         with sqlite3.connect(uri, uri=True) as conn:
-            row = conn.execute(
-                "SELECT name FROM games WHERE id = ? LIMIT 1", (game_id,)
-            ).fetchone()
+            row = conn.execute("SELECT name FROM games WHERE id = ? LIMIT 1", (game_id,)).fetchone()
     except sqlite3.Error:
         return None
     return row[0] if row else None

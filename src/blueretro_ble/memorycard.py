@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import random
-import struct
 from array import array
 from datetime import datetime
+import random
+import struct
 
 from .const import PAK_SIZE
 from .models import VmuSave
@@ -26,7 +26,7 @@ def vmu_swap(data: bytes) -> bytes:
     web config (``dc_vmu.js``). The swap is its own inverse.
     """
     words = array("I", data)
-    assert words.itemsize == 4
+    assert words.itemsize == 4  # noqa: S101
     words.byteswap()
     return words.tobytes()
 
@@ -93,7 +93,7 @@ def make_formatted_pak(rng: random.Random | None = None) -> bytes:
     ``rng`` lets callers inject a seeded generator for reproducible output
     (tests); by default a fresh ``random.Random`` is used.
     """
-    rnd = rng or random.Random()
+    rnd = rng or random.Random()  # noqa: S311
     data = bytearray(PAK_SIZE)
     block = bytearray(32)
 

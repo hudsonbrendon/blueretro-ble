@@ -12,7 +12,7 @@ def test_decode_bdaddr_reverses_byte_order():
 
 
 def test_decode_bdaddr_pads_single_hex_digits():
-    raw = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x0a])
+    raw = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x0A])
     assert decode_bdaddr(raw) == "0a:05:04:03:02:01"
 
 

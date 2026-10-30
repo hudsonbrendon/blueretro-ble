@@ -28,7 +28,7 @@ def supports(info: _AdvertisementLike) -> bool:
     return SERVICE_UUID.lower() in {u.lower() for u in info.service_uuids}
 
 
-async def discover(timeout: float = 5.0) -> list[BLEDevice]:
+async def discover(timeout: float = 5.0) -> list[BLEDevice]:  # noqa: ASYNC109
     """Scan for nearby BlueRetro adapters (idle, no controller connected)."""
     discovered = await BleakScanner.discover(timeout=timeout, return_adv=True)
     found: list[BLEDevice] = []

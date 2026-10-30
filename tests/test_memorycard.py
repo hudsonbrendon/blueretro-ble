@@ -29,6 +29,4 @@ def test_formatted_pak_header_mirrored():
 
 
 def test_formatted_pak_reproducible_with_seed():
-    assert make_formatted_pak(random.Random(1)) == make_formatted_pak(
-        random.Random(1)
-    )
+    assert make_formatted_pak(random.Random(1)) == make_formatted_pak(random.Random(1))

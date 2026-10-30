@@ -37,18 +37,30 @@ def test_mappings_resolve_names_and_offset_port():
     )
     (m,) = preset.mappings(port=3)
     assert m == InputMapping(
-        src=BUTTONS["PAD_LX_LEFT"], dest=BUTTONS["PAD_RX_LEFT"], dest_id=3,
-        max=100, threshold=50, deadzone=135, turbo=0, scaling=1, diag_scaling=2,
+        src=BUTTONS["PAD_LX_LEFT"],
+        dest=BUTTONS["PAD_RX_LEFT"],
+        dest_id=3,
+        max=100,
+        threshold=50,
+        deadzone=135,
+        turbo=0,
+        scaling=1,
+        diag_scaling=2,
     )
     # Round-trips through the wire encoding.
     assert decode_input_config(encode_input_config([m])) == [m]
 
 
 def test_unknown_button_rows_are_skipped():
-    preset = Preset(name="t", desc="", console="", map=[
-        ["NOPE", "PAD_LX_LEFT", 0, 0, 0, 0, 0, 0, 0],
-        ["PAD_LX_LEFT", "PAD_LX_LEFT", 0, 0, 0, 0, 0, 0, 0],
-    ])
+    preset = Preset(
+        name="t",
+        desc="",
+        console="",
+        map=[
+            ["NOPE", "PAD_LX_LEFT", 0, 0, 0, 0, 0, 0, 0],
+            ["PAD_LX_LEFT", "PAD_LX_LEFT", 0, 0, 0, 0, 0, 0, 0],
+        ],
+    )
     assert len(preset.mappings()) == 1
 
 
@@ -57,9 +69,7 @@ async def test_apply_preset_writes_input_config():
         '{"name":"t","desc":"","console":"","map":[["PAD_LX_LEFT","PAD_LX_LEFT",0,100,50,135,0,0,0]]}'
     )
     client = AsyncMock()
-    with patch(
-        "blueretro_ble.device.establish_connection", AsyncMock(return_value=client)
-    ):
+    with patch("blueretro_ble.device.establish_connection", AsyncMock(return_value=client)):
         await BlueRetroDevice().async_apply_preset(AsyncMock(), preset, cfg_id=2, port=1)
     calls = client.write_gatt_char.await_args_list
     assert calls[0].args[0] == const.CHAR_IN_CFG_CTRL

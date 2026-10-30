@@ -1,5 +1,5 @@
-import struct
 from datetime import datetime
+import struct
 from unittest.mock import AsyncMock, patch
 
 from blueretro_ble import BlueRetroDevice, const, parse_vmu_directory, vmu_swap

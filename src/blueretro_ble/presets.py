@@ -7,10 +7,11 @@ max, threshold, deadzone, turbo, scaling, diag_scaling], ...]}`` with button
 
 from __future__ import annotations
 
-import json
-import logging
 from dataclasses import dataclass, field
 from importlib import resources
+from importlib.resources.abc import Traversable
+import json
+import logging
 
 from .buttons import BUTTONS
 from .models import InputMapping
@@ -26,7 +27,7 @@ class Preset:
     desc: str
     console: str
     # Raw rows straight from the JSON (button names, not ids).
-    map: list[list] = field(default_factory=list)
+    map: list[list[str | int]] = field(default_factory=list)
 
     def mappings(self, port: int = 0) -> list[InputMapping]:
         """Resolve rows to :class:`InputMapping`; ``port`` offsets ``dest_id``.
@@ -38,9 +39,7 @@ class Preset:
         for row in self.map:
             src, dest = row[0], row[1]
             if src not in BUTTONS or dest not in BUTTONS:
-                _LOGGER.warning(
-                    "preset %r: unknown button in %r, skipping", self.name, row
-                )
+                _LOGGER.warning("preset %r: unknown button in %r, skipping", self.name, row)
                 continue
             nums = [int(v) for v in row[2:9]]
             out.append(
@@ -59,7 +58,7 @@ class Preset:
         return out
 
 
-def _dir():
+def _dir() -> Traversable:
     return resources.files("blueretro_ble") / "presets"
 
 

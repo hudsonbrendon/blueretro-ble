@@ -7,10 +7,10 @@ def test_service_uuid():
 
 def test_characteristic_uuids_share_service_prefix():
     prefix = "56830f56-5180-fab0-314b-2fa176799a"
-    assert const.CHAR_ABI == prefix + "06"
-    assert const.CHAR_CMD == prefix + "07"
-    assert const.CHAR_APP == prefix + "09"
-    assert const.CHAR_BDADDR == prefix + "0c"
+    assert prefix + "06" == const.CHAR_ABI
+    assert prefix + "07" == const.CHAR_CMD
+    assert prefix + "09" == const.CHAR_APP
+    assert prefix + "0c" == const.CHAR_BDADDR
 
 
 def test_command_bytes():

@@ -45,7 +45,7 @@ def decode_output_config(raw: bytes) -> tuple[str | None, str | None]:
 
 
 def decode_cfg_src(index: int | None) -> str | None:
-    """Map a CMD_GET_CFG_SRC byte to its label (\"Default\" / \"Game ID\")."""
+    """Map a CMD_GET_CFG_SRC byte to its label ("Default" / "Game ID")."""
     return _label(CFG_SRC, index)
 
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -7,44 +7,123 @@ name = "blueretro-ble"
 version = "0.9.0"
 description = "BLE library for the BlueRetro retro-console Bluetooth adapter"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
-license = { text = "MIT" }
 authors = [{ name = "Hudson Brendon", email = "contato.hudsonbrendon@gmail.com" }]
 keywords = ["blueretro", "bluetooth", "ble", "retro-gaming", "home-assistant"]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Home Automation",
+  "Development Status :: 4 - Beta",
+  "Framework :: AsyncIO",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Home Automation",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
 ]
-dependencies = [
-    "bleak>=0.22.0",
-    "bleak-retry-connector>=3.5.0",
-]
+dependencies = ["bleak>=0.22.0", "bleak-retry-connector>=3.5.0"]
 
 [project.urls]
 Homepage = "https://github.com/hudsonbrendon/blueretro-ble"
+Repository = "https://github.com/hudsonbrendon/blueretro-ble"
 Issues = "https://github.com/hudsonbrendon/blueretro-ble/issues"
-
-[project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4"]
+Changelog = "https://github.com/hudsonbrendon/blueretro-ble/blob/main/CHANGELOG.md"
 
 [project.scripts]
 blueretro = "blueretro_ble.__main__:main"
 
+[dependency-groups]
+dev = [
+  "mypy>=1.14",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.25",
+  "pytest-cov>=6",
+  "pytest-timeout>=2.3",
+  "ruff>=0.9",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/blueretro_ble", "tests", "README.md", "CHANGELOG.md", "HARDWARE.md"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/blueretro_ble"]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-
 [tool.ruff]
-line-length = 100
 target-version = "py311"
+line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["ALL"]
+ignore = [
+  "ANN401",  # Any in **kwargs
+  "COM812",  # formatter conflict
+  "CPY001",  # no copyright headers
+  "D203",    # docstring style conflicts (keep D211)
+  "D213",    # docstring style conflicts (keep D212)
+  "D417",    # false positives on Args sections
+  "ISC001",  # formatter conflict
+  "PLR2004", # magic values are fine in protocol code
+  "TRY003",  # long exception messages
+  "EM101",   # string literal in exception
+  "EM102",   # f-string in exception
+  "FBT001",  # boolean positional args in setters are intentional
+  "FBT002",
+  "PLR0913", # protocol setters have many parameters
+  "C901",    # parsing functions are branchy by nature
+  "PLR0912",
+  "PLR0915",
+  "PLR0911", # state machines have many returns
+  "ERA001",  # section banners look like commented code
+  "TRY300",  # try/else style is a matter of taste
+  "TC001",   # runtime imports are fine with `from __future__ import annotations`
+  "TC002",
+  "TC003",
+  "D105",    # magic methods need no docstrings
+  "D107",    # __init__ documented on the class
+  "DTZ",     # VMU save timestamps are naive device-local time by design
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+combine-as-imports = true
+known-first-party = ["blueretro_ble"]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["ANN", "D", "E501", "PLR", "S", "SLF", "ARG", "INP", "FBT", "PT", "PLC0415", "ERA", "RUF012", "N806", "T201", "ASYNC", "EM", "TRY", "BLE", "C901", "PGH", "RUF"]
+"scripts/**" = ["T201", "INP001", "D", "S", "ANN"]
+"src/blueretro_ble/__main__.py" = ["T201", "ASYNC240"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --cov=blueretro_ble --cov-report=term-missing"
+timeout = 30
+
+[tool.coverage.run]
+source = ["blueretro_ble"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 88
